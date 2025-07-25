@@ -25,7 +25,7 @@ import sg.edu.nus.iss.edgp.workflow.management.jwt.JWTFilter;
 @EnableWebSecurity
 public class EDGPWorkflowManagementSecurityConfig {
 	
-	private static final String[] SECURED_URLs = { "/api/wf/**" };
+	private static final String[] SECURED_URLs = { "/api/wfm/**" };
 
 	@Value("${client.url}")
 	private String allowedOrigin;
