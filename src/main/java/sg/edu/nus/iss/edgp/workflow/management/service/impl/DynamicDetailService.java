@@ -1,16 +1,21 @@
 package sg.edu.nus.iss.edgp.workflow.management.service.impl;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
+import sg.edu.nus.iss.edgp.workflow.management.dto.FileStatus;
 import sg.edu.nus.iss.edgp.workflow.management.service.IDynamicDetailService;
+import sg.edu.nus.iss.edgp.workflow.management.utility.FileMetricsConstants;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.model.AttributeAction;
 import software.amazon.awssdk.services.dynamodb.model.AttributeDefinition;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValueUpdate;
 import software.amazon.awssdk.services.dynamodb.model.BillingMode;
 import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest;
 import software.amazon.awssdk.services.dynamodb.model.DescribeTableRequest;
@@ -20,6 +25,8 @@ import software.amazon.awssdk.services.dynamodb.model.KeyType;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
+import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
+import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
 @RequiredArgsConstructor
 @Service
@@ -119,6 +126,98 @@ public class DynamicDetailService implements IDynamicDetailService {
 		} catch (Exception e) {
 			return AttributeValue.builder().s(trimmed).build(); // fallback
 		}
+	}
+	
+	
+	public Map<String, AttributeValue> getFileByFileId(String tableName, String fileId) {
+	    Map<String, AttributeValue> expressionValues = new HashMap<>();
+	    expressionValues.put(":fileId", AttributeValue.builder().s(fileId).build());
+
+
+	    ScanRequest scanRequest = ScanRequest.builder()
+	        .tableName(tableName)
+	        .filterExpression("fileId = :fileId")
+	        .expressionAttributeValues(expressionValues)
+	        .build();
+
+	    List<Map<String, AttributeValue>> results = dynamoDbClient.scan(scanRequest).items();
+	    
+	    if (results.isEmpty()) {
+            return null;
+        }
+
+	    return results.get(0);
+	}
+	
+	public void insertFileStatusData(String tableName, Map<String, String> rawData) {
+		if (rawData == null || rawData.isEmpty()) {
+			throw new IllegalArgumentException("No data provided for insert.");
+		}
+
+		Map<String, AttributeValue> item = new HashMap<>();
+
+		if (!rawData.containsKey("id")) {
+			item.put("id", AttributeValue.builder().s(UUID.randomUUID().toString()).build());
+		} else {
+			item.put("id", AttributeValue.builder().s(rawData.get("id")).build());
+		}
+
+		for (Map.Entry<String, String> entry : rawData.entrySet()) {
+			String column = entry.getKey();
+			String value = entry.getValue();
+
+			if (column == null || column.trim().isEmpty())
+				continue;
+
+			AttributeValue attrVal = convertToAttributeValue(value);
+			item.put(column, attrVal);
+		}
+
+		PutItemRequest request = PutItemRequest.builder().tableName(tableName).item(item).build();
+
+		dynamoDbClient.putItem(request);
+	
+	}
+	
+	
+	public void updateFileStatus(String tableName, FileStatus fileStatus) {
+	    Map<String, AttributeValue> key = new HashMap<>();
+	    key.put("id", AttributeValue.builder().s(fileStatus.getId()).build());
+
+	    Map<String, AttributeValueUpdate> updates = new HashMap<>();
+	    updates.put(FileMetricsConstants.SUCCESS_COUNT, AttributeValueUpdate.builder()
+	        .value(AttributeValue.builder().s(fileStatus.getSuccessCount()).build())
+	        .action(AttributeAction.PUT)
+	        .build());
+	    
+	    updates.put(FileMetricsConstants.REJECTED_COUNT, AttributeValueUpdate.builder()
+		        .value(AttributeValue.builder().s(fileStatus.getRejectedCount()).build())
+		        .action(AttributeAction.PUT)
+		        .build());
+	    
+	    updates.put(FileMetricsConstants.FAILED_COUNT, AttributeValueUpdate.builder()
+		        .value(AttributeValue.builder().s(fileStatus.getFailedCount()).build())
+		        .action(AttributeAction.PUT)
+		        .build());
+	    
+	    updates.put(FileMetricsConstants.QUARANTINED_COUNT, AttributeValueUpdate.builder()
+		        .value(AttributeValue.builder().s(fileStatus.getQuarantinedCount()).build())
+		        .action(AttributeAction.PUT)
+		        .build());
+	    
+	    updates.put(FileMetricsConstants.PROCESSED_COUNT, AttributeValueUpdate.builder()
+		        .value(AttributeValue.builder().s(fileStatus.getProcessedCount()).build())
+		        .action(AttributeAction.PUT)
+		        .build());
+
+
+	    UpdateItemRequest updateRequest = UpdateItemRequest.builder()
+	        .tableName(tableName)
+	        .key(key)
+	        .attributeUpdates(updates)
+	        .build();
+
+	    dynamoDbClient.updateItem(updateRequest);
 	}
 
 }
