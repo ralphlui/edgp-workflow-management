@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import sg.edu.nus.iss.edgp.workflow.management.dto.FileStatus;
+import sg.edu.nus.iss.edgp.workflow.management.dto.WorkflowStatus;
 import sg.edu.nus.iss.edgp.workflow.management.service.IDynamicDetailService;
 import sg.edu.nus.iss.edgp.workflow.management.utility.FileMetricsConstants;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
@@ -127,28 +128,25 @@ public class DynamicDetailService implements IDynamicDetailService {
 			return AttributeValue.builder().s(trimmed).build(); // fallback
 		}
 	}
-	
-	
-	public Map<String, AttributeValue> getFileByFileId(String tableName, String fileId) {
-	    Map<String, AttributeValue> expressionValues = new HashMap<>();
-	    expressionValues.put(":fileId", AttributeValue.builder().s(fileId).build());
 
+	@Override
+	public Map<String, AttributeValue> getFileStatusDataByFileId(String tableName, String fileId) {
+		Map<String, AttributeValue> expressionValues = new HashMap<>();
+		expressionValues.put(":fileId", AttributeValue.builder().s(fileId).build());
 
-	    ScanRequest scanRequest = ScanRequest.builder()
-	        .tableName(tableName)
-	        .filterExpression("fileId = :fileId")
-	        .expressionAttributeValues(expressionValues)
-	        .build();
+		ScanRequest scanRequest = ScanRequest.builder().tableName(tableName).filterExpression("fileId = :fileId")
+				.expressionAttributeValues(expressionValues).build();
 
-	    List<Map<String, AttributeValue>> results = dynamoDbClient.scan(scanRequest).items();
-	    
-	    if (results.isEmpty()) {
-            return null;
-        }
+		List<Map<String, AttributeValue>> results = dynamoDbClient.scan(scanRequest).items();
 
-	    return results.get(0);
+		if (results.isEmpty()) {
+			return null;
+		}
+
+		return results.get(0);
 	}
-	
+
+	@Override
 	public void insertFileStatusData(String tableName, Map<String, String> rawData) {
 		if (rawData == null || rawData.isEmpty()) {
 			throw new IllegalArgumentException("No data provided for insert.");
@@ -176,48 +174,82 @@ public class DynamicDetailService implements IDynamicDetailService {
 		PutItemRequest request = PutItemRequest.builder().tableName(tableName).item(item).build();
 
 		dynamoDbClient.putItem(request);
-	
+
 	}
-	
-	
+
+	@Override
 	public void updateFileStatus(String tableName, FileStatus fileStatus) {
-	    Map<String, AttributeValue> key = new HashMap<>();
-	    key.put("id", AttributeValue.builder().s(fileStatus.getId()).build());
+		Map<String, AttributeValue> key = new HashMap<>();
+		key.put("id", AttributeValue.builder().s(fileStatus.getId()).build());
 
-	    Map<String, AttributeValueUpdate> updates = new HashMap<>();
-	    updates.put(FileMetricsConstants.SUCCESS_COUNT, AttributeValueUpdate.builder()
-	        .value(AttributeValue.builder().s(fileStatus.getSuccessCount()).build())
-	        .action(AttributeAction.PUT)
-	        .build());
-	    
-	    updates.put(FileMetricsConstants.REJECTED_COUNT, AttributeValueUpdate.builder()
-		        .value(AttributeValue.builder().s(fileStatus.getRejectedCount()).build())
-		        .action(AttributeAction.PUT)
-		        .build());
-	    
-	    updates.put(FileMetricsConstants.FAILED_COUNT, AttributeValueUpdate.builder()
-		        .value(AttributeValue.builder().s(fileStatus.getFailedCount()).build())
-		        .action(AttributeAction.PUT)
-		        .build());
-	    
-	    updates.put(FileMetricsConstants.QUARANTINED_COUNT, AttributeValueUpdate.builder()
-		        .value(AttributeValue.builder().s(fileStatus.getQuarantinedCount()).build())
-		        .action(AttributeAction.PUT)
-		        .build());
-	    
-	    updates.put(FileMetricsConstants.PROCESSED_COUNT, AttributeValueUpdate.builder()
-		        .value(AttributeValue.builder().s(fileStatus.getProcessedCount()).build())
-		        .action(AttributeAction.PUT)
-		        .build());
+		Map<String, AttributeValueUpdate> updates = new HashMap<>();
+		updates.put(FileMetricsConstants.SUCCESS_COUNT,
+				AttributeValueUpdate.builder().value(AttributeValue.builder().s(fileStatus.getSuccessCount()).build())
+						.action(AttributeAction.PUT).build());
 
+		updates.put(FileMetricsConstants.REJECTED_COUNT,
+				AttributeValueUpdate.builder().value(AttributeValue.builder().s(fileStatus.getRejectedCount()).build())
+						.action(AttributeAction.PUT).build());
 
-	    UpdateItemRequest updateRequest = UpdateItemRequest.builder()
-	        .tableName(tableName)
-	        .key(key)
-	        .attributeUpdates(updates)
-	        .build();
+		updates.put(FileMetricsConstants.FAILED_COUNT,
+				AttributeValueUpdate.builder().value(AttributeValue.builder().s(fileStatus.getFailedCount()).build())
+						.action(AttributeAction.PUT).build());
 
-	    dynamoDbClient.updateItem(updateRequest);
+		updates.put(FileMetricsConstants.QUARANTINED_COUNT,
+				AttributeValueUpdate.builder()
+						.value(AttributeValue.builder().s(fileStatus.getQuarantinedCount()).build())
+						.action(AttributeAction.PUT).build());
+
+		updates.put(FileMetricsConstants.PROCESSED_COUNT,
+				AttributeValueUpdate.builder().value(AttributeValue.builder().s(fileStatus.getProcessedCount()).build())
+						.action(AttributeAction.PUT).build());
+
+		UpdateItemRequest updateRequest = UpdateItemRequest.builder().tableName(tableName).key(key)
+				.attributeUpdates(updates).build();
+
+		dynamoDbClient.updateItem(updateRequest);
+	}
+
+	@Override
+	public Map<String, AttributeValue> getDataByWorkflowStatusId(String tableName, String id) {
+		Map<String, AttributeValue> expressionValues = new HashMap<>();
+		expressionValues.put(":id", AttributeValue.builder().s(id).build());
+
+		ScanRequest scanRequest = ScanRequest.builder().tableName(tableName).filterExpression("id = :id")
+				.expressionAttributeValues(expressionValues).build();
+
+		List<Map<String, AttributeValue>> results = dynamoDbClient.scan(scanRequest).items();
+
+		if (results.isEmpty()) {
+			return null;
+		}
+
+		return results.get(0);
+	}
+
+	@Override
+	public void updateWorkflowStatus(String tableName, WorkflowStatus workflowStatus) {
+		Map<String, AttributeValue> key = new HashMap<>();
+		key.put("id", AttributeValue.builder().s(workflowStatus.getId()).build());
+
+		Map<String, AttributeValueUpdate> updates = new HashMap<>();
+		updates.put("ruleStatus",
+				AttributeValueUpdate.builder().value(AttributeValue.builder().s(workflowStatus.getRuleStatus()).build())
+						.action(AttributeAction.PUT).build());
+
+		updates.put("status",
+				AttributeValueUpdate.builder()
+						.value(AttributeValue.builder().s(workflowStatus.getFinalStatus()).build())
+						.action(AttributeAction.PUT).build());
+
+		updates.put("message",
+				AttributeValueUpdate.builder().value(AttributeValue.builder().s(workflowStatus.getMessage()).build())
+						.action(AttributeAction.PUT).build());
+
+		UpdateItemRequest updateRequest = UpdateItemRequest.builder().tableName(tableName).key(key)
+				.attributeUpdates(updates).build();
+
+		dynamoDbClient.updateItem(updateRequest);
 	}
 
 }
