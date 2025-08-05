@@ -2,11 +2,15 @@ package sg.edu.nus.iss.edgp.workflow.management.service.impl;
 
 import java.util.Iterator;
 import java.util.Map;
+import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
+import sg.edu.nus.iss.edgp.workflow.management.repository.WorkflowDataRepository;
 import sg.edu.nus.iss.edgp.workflow.management.service.IDynamicSQLService;
 
 @RequiredArgsConstructor
@@ -15,6 +19,9 @@ public class DynamicSQLService implements IDynamicSQLService {
 
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
+	private final WorkflowDataRepository workflowDataRepository;
+	private static final Logger logger = LoggerFactory.getLogger(DynamicSQLService.class);
+
 
 	@Override
 	public void buildCreateTableSQL(Map<String, Object> data) {
@@ -45,6 +52,23 @@ public class DynamicSQLService implements IDynamicSQLService {
 
 		String query = "CREATE TABLE IF NOT EXISTS `" + tableName + "` (" + staticColumns + ", " + columnDefs + ")";
 		jdbcTemplate.execute(query);
+		insertData(tableName, data);
+	}
+
+	@Override
+	public void insertData(String tableName, Map<String, Object> data) {
+		try {
+			String schema = jdbcTemplate.getDataSource().getConnection().getCatalog();
+			if (!workflowDataRepository.tableExists(schema, tableName)) {
+				throw new IllegalStateException("No table found. Please set up the table before uploading data.");
+			}
+			data.put("id", UUID.randomUUID().toString());
+			workflowDataRepository.insertRow(tableName, data);
+
+		} catch (Exception e) {
+			logger.error("uploadCsvDataToTable exception... {}", e.toString());
+		}
+
 	}
 
 	private static String mapDataType(Class<?> clazz) {
