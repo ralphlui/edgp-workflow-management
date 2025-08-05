@@ -20,7 +20,8 @@ import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 @Service
 public class WorkflowService implements IWorkflowService {
 
-	private final DynamicDetailService dynamoService;
+	private final DynamicDynamoService dynamoService;
+	private final DynamicSQLService dynamicSQLService;
 
 	@Override
 	public void updateWorkflowStatus(Map<String, Object> data) {
@@ -30,6 +31,11 @@ public class WorkflowService implements IWorkflowService {
 		String fileId = (String) data.get("fileId");
 		String message = (String) data.get("message");
 		String totalRowsCount = (String) data.get("totalRowsCount");
+
+		if (workflowStatusId != null) {
+			data.remove("id");
+			data.put("workflowStatusId", workflowStatusId);
+		}
 
 		updateFileStatus(status, fileId, totalRowsCount);
 
@@ -58,13 +64,16 @@ public class WorkflowService implements IWorkflowService {
 			dynamoService.insertWorkFlowStatusData(workflowStatusTable, workflosStatus);
 
 		} else {
-
 			WorkflowStatus workflowStatus = new WorkflowStatus();
 			workflowStatus.setFinalStatus(status);
 			workflowStatus.setRuleStatus(status);
 			workflowStatus.setMessage(message);
 			workflowStatus.setId(workflowStatusId);
 			dynamoService.updateWorkflowStatus(workflowStatusTable, workflowStatus);
+		}
+
+		switch (status) {
+		case "S" -> dynamicSQLService.buildCreateTableSQL(data);
 		}
 
 	}
@@ -126,7 +135,6 @@ public class WorkflowService implements IWorkflowService {
 			dynamoService.updateFileStatus(fileStatusTable, fileStatus);
 
 		}
-
 	}
 
 	private static int safeParseInt(AttributeValue attr, int defaultValue) {
@@ -141,4 +149,5 @@ public class WorkflowService implements IWorkflowService {
 			return defaultValue;
 		}
 	}
+
 }
