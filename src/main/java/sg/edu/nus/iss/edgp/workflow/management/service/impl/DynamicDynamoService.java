@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
 import sg.edu.nus.iss.edgp.workflow.management.dto.FileStatus;
 import sg.edu.nus.iss.edgp.workflow.management.dto.WorkflowStatus;
-import sg.edu.nus.iss.edgp.workflow.management.service.IDynamicDetailService;
+import sg.edu.nus.iss.edgp.workflow.management.service.IDynamicDynamoService;
 import sg.edu.nus.iss.edgp.workflow.management.utility.FileMetricsConstants;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeAction;
@@ -31,7 +31,7 @@ import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
 @RequiredArgsConstructor
 @Service
-public class DynamicDetailService implements IDynamicDetailService {
+public class DynamicDynamoService implements IDynamicDynamoService {
 
 	private final DynamoDbClient dynamoDbClient;
 

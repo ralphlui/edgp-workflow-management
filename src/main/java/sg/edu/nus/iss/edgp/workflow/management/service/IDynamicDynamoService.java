@@ -6,7 +6,7 @@ import sg.edu.nus.iss.edgp.workflow.management.dto.FileStatus;
 import sg.edu.nus.iss.edgp.workflow.management.dto.WorkflowStatus;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
-public interface IDynamicDetailService {
+public interface IDynamicDynamoService {
 
 	boolean tableExists(String tableName);
 

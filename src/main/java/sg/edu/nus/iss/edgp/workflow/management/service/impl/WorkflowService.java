@@ -20,7 +20,7 @@ import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 @Service
 public class WorkflowService implements IWorkflowService {
 
-	private final DynamicDetailService dynamoService;
+	private final DynamicDynamoService dynamoService;
 	private final DynamicSQLService dynamicSQLService;
 
 	@Override
