@@ -42,7 +42,7 @@ public class WorkflowController {
 	String activityTypePrefix;
 	
 	@GetMapping(value = "", produces = "application/json")
-	@PreAuthorize("hasAuthority('SCOPE_manage:policy') or hasAuthority('SCOPE_view:policy')")
+	@PreAuthorize("hasAuthority('SCOPE_manage:mdm') or hasAuthority('SCOPE_view:mdm')")
 	public ResponseEntity<APIResponse<List<Map<String, Object>>>> retrievePolicyList(
 			@RequestHeader("Authorization") String authorizationHeader, @RequestHeader("X-FileId") String fileId,
 			@Valid @ModelAttribute SearchRequest searchRequest) {
