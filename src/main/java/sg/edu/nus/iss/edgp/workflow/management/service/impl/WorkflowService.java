@@ -2,7 +2,9 @@ package sg.edu.nus.iss.edgp.workflow.management.service.impl;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -10,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import sg.edu.nus.iss.edgp.workflow.management.dto.FileStatus;
+import sg.edu.nus.iss.edgp.workflow.management.dto.SearchRequest;
 import sg.edu.nus.iss.edgp.workflow.management.dto.WorkflowStatus;
 import sg.edu.nus.iss.edgp.workflow.management.service.IWorkflowService;
 import sg.edu.nus.iss.edgp.workflow.management.utility.DynamoConstants;
@@ -57,7 +60,7 @@ public class WorkflowService implements IWorkflowService {
 			workflosStatus.put("workflowStatusId", workflowStatusId);
 			workflosStatus.put("fileId", fileId);
 			workflosStatus.put("ruleStatus", status);
-			workflosStatus.put("status", status);
+			workflosStatus.put("finalStatus", status);
 			workflosStatus.put("message", message);
 			workflosStatus.put("uploadedDate", uploadedDate);
 
@@ -136,6 +139,66 @@ public class WorkflowService implements IWorkflowService {
 
 		}
 	}
+
+	public List<Map<String, Object>> retrieveDataList(String fileId, String status, SearchRequest searchRequest) {
+		String workflowStatusTable = DynamoConstants.MASTER_DATA_TABLE_NAME;
+		List<Map<String, AttributeValue>> results = dynamoService.retrieveDataList(workflowStatusTable, fileId, status, searchRequest);
+		List<Map<String, Object>> dynamicList = new ArrayList<>();
+
+		for (Map<String, AttributeValue> item : results) {
+			Map<String, Object> dynamicItem = new HashMap<>();
+
+			for (Map.Entry<String, AttributeValue> entry : item.entrySet()) {
+				String key = entry.getKey();
+				AttributeValue value = entry.getValue();
+
+				if (value.s() != null) {
+					dynamicItem.put(key, value.s());
+				} else if (value.n() != null) {
+					dynamicItem.put(key, value.n());
+				} else if (value.bool() != null) {
+					dynamicItem.put(key, value.bool());
+
+				} else if (value.n() != null) {
+					dynamicItem.put(key, value.n());
+				} else if (value.hasL()) {
+					List<Object> list = new ArrayList<>();
+					for (AttributeValue listVal : value.l()) {
+						if (listVal.s() != null)
+							list.add(listVal.s());
+						else if (listVal.n() != null)
+							list.add(listVal.n());
+						else if (listVal.bool() != null)
+							list.add(listVal.bool());
+						else
+							list.add(listVal.toString()); // fallback
+					}
+					dynamicItem.put(key, list);
+				} else if (value.hasM()) {
+					Map<String, Object> nestedMap = new HashMap<>();
+					for (Map.Entry<String, AttributeValue> nestedEntry : value.m().entrySet()) {
+						AttributeValue nestedVal = nestedEntry.getValue();
+						if (nestedVal.s() != null)
+							nestedMap.put(nestedEntry.getKey(), nestedVal.s());
+						else if (nestedVal.n() != null)
+							nestedMap.put(nestedEntry.getKey(), nestedVal.n());
+						else if (nestedVal.bool() != null)
+							nestedMap.put(nestedEntry.getKey(), nestedVal.bool());
+						else
+							nestedMap.put(nestedEntry.getKey(), nestedVal.toString()); // fallback
+					}
+					dynamicItem.put(key, nestedMap);
+				} else {
+					dynamicItem.put(key, value.toString()); // fallback for unknown types
+				}
+			}
+
+			dynamicList.add(dynamicItem);
+		}
+		
+		return dynamicList;
+	}
+
 
 	private static int safeParseInt(AttributeValue attr, int defaultValue) {
 		if (attr == null)

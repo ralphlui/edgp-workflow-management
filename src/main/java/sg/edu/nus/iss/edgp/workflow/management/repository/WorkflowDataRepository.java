@@ -55,7 +55,7 @@ public class WorkflowDataRepository {
 		System.out.println("Values: " + Arrays.toString(insertData.values().toArray()));
 		System.out.println("Column count: " + insertData.keySet().size());
 
-		jdbcTemplate.update(sql, insertData.values().toArray());
+	    jdbcTemplate.update(sql, insertData.values().toArray());
 	}
 
 	public void validateInsertColumns(String tableName, Set<String> insertColumns, JdbcTemplate jdbcTemplate) {
@@ -108,15 +108,18 @@ public class WorkflowDataRepository {
 								|| sqlType == Types.TIMESTAMP) ? null : "";
 					} else {
 						try {
-
-							finalValue = switch (sqlType) {
-							case Types.INTEGER -> Integer.parseInt(valStr);
-							case Types.DECIMAL, Types.NUMERIC -> new BigDecimal(valStr);
-							case Types.DOUBLE, Types.FLOAT -> Double.parseDouble(valStr);
-							case Types.DATE -> Date.valueOf(valStr);
-							case Types.TIMESTAMP -> Timestamp.valueOf(valStr);
-							default -> valStr;
-							};
+							 if (val instanceof Boolean && (sqlType == Types.INTEGER || sqlType == Types.TINYINT || sqlType == Types.SMALLINT || sqlType == Types.BIT)) {
+		                            finalValue = (Boolean) val ? 1 : 0;
+		                        } else {
+		                        	finalValue = switch (sqlType) {
+									case Types.INTEGER -> Integer.parseInt(valStr);
+									case Types.DECIMAL, Types.NUMERIC -> new BigDecimal(valStr);
+									case Types.DOUBLE, Types.FLOAT -> Double.parseDouble(valStr);
+									case Types.DATE -> Date.valueOf(valStr);
+									case Types.TIMESTAMP -> Timestamp.valueOf(valStr);
+									default -> valStr;
+									};
+		                        }
 						} catch (Exception ex) {
 							finalValue = valStr; // fallback
 						}

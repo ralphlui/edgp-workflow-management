@@ -1,5 +1,8 @@
 package sg.edu.nus.iss.edgp.workflow.management.service.impl;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -9,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import sg.edu.nus.iss.edgp.workflow.management.dto.FileStatus;
+import sg.edu.nus.iss.edgp.workflow.management.dto.SearchRequest;
 import sg.edu.nus.iss.edgp.workflow.management.dto.WorkflowStatus;
 import sg.edu.nus.iss.edgp.workflow.management.service.IDynamicDynamoService;
 import sg.edu.nus.iss.edgp.workflow.management.utility.FileMetricsConstants;
@@ -27,6 +31,7 @@ import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
+import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
 @RequiredArgsConstructor
@@ -237,7 +242,7 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 				AttributeValueUpdate.builder().value(AttributeValue.builder().s(workflowStatus.getRuleStatus()).build())
 						.action(AttributeAction.PUT).build());
 
-		updates.put("status",
+		updates.put("finalStatus",
 				AttributeValueUpdate.builder()
 						.value(AttributeValue.builder().s(workflowStatus.getFinalStatus()).build())
 						.action(AttributeAction.PUT).build());
@@ -252,4 +257,82 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 		dynamoDbClient.updateItem(updateRequest);
 	}
 
+	public List<Map<String, AttributeValue>> retrieveDataList(String tableName, String fileId, String status,
+			SearchRequest searchRequest) {
+		Map<String, AttributeValue> expressionValues = new HashMap<>();
+		List<String> filterConditions = new ArrayList<>();
+
+		if (fileId != null && !fileId.isEmpty()) {
+			filterConditions.add("fileId = :fileId");
+			expressionValues.put(":fileId", AttributeValue.builder().s(fileId).build());
+		}
+
+		if (status != null && !status.isEmpty()) {
+			filterConditions.add("finalStatus = :finalStatus");
+			expressionValues.put(":finalStatus", AttributeValue.builder().s(status).build());
+		}
+
+		Map<String, AttributeValue> lastEvaluatedKey = null;
+
+		// Case 1: No pagination → retrieve all
+		if (searchRequest.getPage() == null || searchRequest.getSize() == null) {
+			List<Map<String, AttributeValue>> finalItems = new ArrayList<>();
+			do {
+				ScanRequest.Builder scanBuilder = ScanRequest.builder().tableName(tableName);
+
+				if (!filterConditions.isEmpty()) {
+					scanBuilder.filterExpression(String.join(" AND ", filterConditions))
+							.expressionAttributeValues(expressionValues);
+				}
+
+				if (lastEvaluatedKey != null) {
+					scanBuilder.exclusiveStartKey(lastEvaluatedKey);
+				}
+
+				ScanResponse response = dynamoDbClient.scan(scanBuilder.build());
+				finalItems.addAll(response.items());
+				lastEvaluatedKey = response.lastEvaluatedKey();
+			} while (lastEvaluatedKey != null && !lastEvaluatedKey.isEmpty());
+
+			finalItems.sort(Comparator.comparing(item -> item.get("id").s())); // or .n() for numeric id
+
+			return finalItems;
+		}
+
+		// Case 2: Paginated fetch
+		int size = searchRequest.getSize();
+		int page = searchRequest.getPage();
+		int fromIndex = (page - 1) * size;
+		int toIndex = fromIndex + size;
+
+		List<Map<String, AttributeValue>> filteredItems = new ArrayList<>();
+
+		do {
+			ScanRequest.Builder scanBuilder = ScanRequest.builder().tableName(tableName).limit(50);
+
+			if (!filterConditions.isEmpty()) {
+				scanBuilder.filterExpression(String.join(" AND ", filterConditions))
+						.expressionAttributeValues(expressionValues);
+			}
+
+			if (lastEvaluatedKey != null) {
+				scanBuilder.exclusiveStartKey(lastEvaluatedKey);
+			}
+
+			ScanResponse response = dynamoDbClient.scan(scanBuilder.build());
+			filteredItems.addAll(response.items());
+			lastEvaluatedKey = response.lastEvaluatedKey();
+
+		} while (lastEvaluatedKey != null && !lastEvaluatedKey.isEmpty());
+
+		// Sort the filtered list by id (ascending)
+		filteredItems.sort(Comparator.comparing(item -> item.get("id").s()));
+
+		// Paginate
+		if (fromIndex >= filteredItems.size()) {
+			return Collections.emptyList(); // Page out of range
+		}
+
+		return filteredItems.subList(fromIndex, Math.min(toIndex, filteredItems.size()));
+	}
 }

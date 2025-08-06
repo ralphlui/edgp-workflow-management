@@ -66,7 +66,7 @@ public class DynamicSQLService implements IDynamicSQLService {
 			workflowDataRepository.insertRow(tableName, data);
 
 		} catch (Exception e) {
-			logger.error("uploadCsvDataToTable exception... {}", e.toString());
+			logger.error("An error occurred while inserting clean data into the database.... {}", e.toString());
 		}
 
 	}
