@@ -8,9 +8,11 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import sg.edu.nus.iss.edgp.workflow.management.dto.APIResponse;
 
+@RestControllerAdvice
 public class GlobalExceptionHandler {
 	
 	 private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
