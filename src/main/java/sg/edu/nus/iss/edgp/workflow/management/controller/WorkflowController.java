@@ -23,6 +23,7 @@ import sg.edu.nus.iss.edgp.workflow.management.dto.APIResponse;
 import sg.edu.nus.iss.edgp.workflow.management.dto.AuditDTO;
 import sg.edu.nus.iss.edgp.workflow.management.dto.SearchRequest;
 import sg.edu.nus.iss.edgp.workflow.management.enums.HTTPVerb;
+import sg.edu.nus.iss.edgp.workflow.management.exception.WorkflowServiceException;
 import sg.edu.nus.iss.edgp.workflow.management.jwt.JWTService;
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.AuditService;
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.WorkflowService;
@@ -37,12 +38,14 @@ public class WorkflowController {
 	private final WorkflowService workflowService;
 	private final AuditService auditService;
 	private final JWTService jwtService;
+	private String genericErrorMessage = "An error occurred while processing your request. Please try again later.";
+
 	
 	@Value("${audit.activity.type.prefix}")
 	String activityTypePrefix;
 	
 	@GetMapping(value = "", produces = "application/json")
-	@PreAuthorize("hasAuthority('SCOPE_manage:mdm1') or hasAuthority('SCOPE_view:mdm1')")
+	@PreAuthorize("hasAuthority('SCOPE_manage:mdm') or hasAuthority('SCOPE_view:mdm')")
 	public ResponseEntity<APIResponse<List<Map<String, Object>>>> retrievePolicyList(
 			@RequestHeader("Authorization") String authorizationHeader, @RequestHeader("X-FileId") String fileId,
 			@Valid @ModelAttribute SearchRequest searchRequest) {
@@ -82,7 +85,7 @@ public class WorkflowController {
 			}
 
 		} catch (Exception ex) {
-			//message = ex instanceof PolicyServiceException ? ex.getMessage() : genericErrorMessage;
+			message = ex instanceof WorkflowServiceException ? ex.getMessage() : genericErrorMessage;
 			auditService.logAudit(auditDTO, 500, message, authorizationHeader);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(APIResponse.error(message));
 		}
