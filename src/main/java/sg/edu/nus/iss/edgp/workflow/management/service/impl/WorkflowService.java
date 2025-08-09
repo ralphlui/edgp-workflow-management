@@ -87,10 +87,9 @@ public class WorkflowService implements IWorkflowService {
 			}
 
 			String categoryTableName = (String) rawData.get("category");
-			if (categoryTableName != null && categoryTableName != "") {
 			switch (status) {
 			case "success" -> dynamicSQLService.buildCreateTableSQL(data, categoryTableName);
-			}
+
 			}
 		} catch (Exception ex) {
 			logger.error("An error occurred while updating workflow status.... {}", ex);
@@ -98,11 +97,11 @@ public class WorkflowService implements IWorkflowService {
 		}
 
 	}
-	
+
 	private void putIfNotNull(Map<String, String> map, String key, String value) {
-	    if (value != null) {
-	        map.put(key, value);
-	    }
+		if (value != null) {
+			map.put(key, value);
+		}
 	}
 
 	private void updateFileStatus(String status, String fileId, String totalRowsCount) {
@@ -129,7 +128,7 @@ public class WorkflowService implements IWorkflowService {
 
 				switch (Status.valueOf(status.toUpperCase())) {
 				case SUCCESS -> fileStatus.put(FileMetricsConstants.SUCCESS_COUNT, "1");
-				case REJECT  -> fileStatus.put(FileMetricsConstants.REJECTED_COUNT, "1");
+				case REJECT -> fileStatus.put(FileMetricsConstants.REJECTED_COUNT, "1");
 				case FAIL -> fileStatus.put(FileMetricsConstants.FAILED_COUNT, "1");
 				case QUARANTINE -> fileStatus.put(FileMetricsConstants.QUARANTINED_COUNT, "1");
 				}
@@ -150,11 +149,11 @@ public class WorkflowService implements IWorkflowService {
 				fileStatus.setProcessedCount(String.valueOf(processedCount));
 
 				switch (Status.valueOf(status.toUpperCase())) {
-			    case SUCCESS -> successCount++;
-			    case REJECT -> rejectedCount++;
-			    case FAIL -> failedCount++;
-			    case QUARANTINE -> quarantineCount++;
-			}
+				case SUCCESS -> successCount++;
+				case REJECT -> rejectedCount++;
+				case FAIL -> failedCount++;
+				case QUARANTINE -> quarantineCount++;
+				}
 
 				fileStatus.setSuccessCount(String.valueOf(successCount));
 				fileStatus.setRejectedCount(String.valueOf(rejectedCount));
@@ -171,19 +170,19 @@ public class WorkflowService implements IWorkflowService {
 		}
 	}
 
-    @Override
+	@Override
 	public List<Map<String, Object>> retrieveDataList(String fileId, String status, SearchRequest searchRequest) {
 
 		try {
 			String workflowStatusTable = DynamoConstants.MASTER_DATA_TABLE_NAME;
-			Map<String, Object> result = dynamoService.retrieveDataList(workflowStatusTable, fileId,
-					status, searchRequest);
-			
+			Map<String, Object> result = dynamoService.retrieveDataList(workflowStatusTable, fileId, status,
+					searchRequest);
+
 			@SuppressWarnings("unchecked")
 			List<Map<String, AttributeValue>> items = (List<Map<String, AttributeValue>>) result.get("items");
 			Map<String, Object> totalCountMap = new HashMap<>();
 			totalCountMap.put("totalCount", result.get("totalCount"));
-		
+
 			List<Map<String, Object>> dynamicList = new ArrayList<>();
 			for (Map<String, AttributeValue> item : items) {
 				Map<String, Object> dynamicItem = new HashMap<>();

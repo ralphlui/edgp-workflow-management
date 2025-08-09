@@ -27,6 +27,10 @@ public class DynamicSQLService implements IDynamicSQLService {
 	public void buildCreateTableSQL(Map<String, Object> data, String tableName) {
 
 		try {
+			
+			if (tableName == null || tableName.isEmpty()) {
+				throw new DynamicSQLServiceException("Table Name is empty while creating master table");
+			}
 
 			StringBuilder result = new StringBuilder();
 
