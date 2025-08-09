@@ -148,6 +148,10 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 	public Map<String, AttributeValue> getFileStatusDataByFileId(String tableName, String fileId) {
 
 		try {
+			if (fileId == null || fileId.isEmpty()) {
+				throw new DynamicDynamoServiceException("Fiele ID is empty while  retireving file status data by file id ");
+			}
+			
 			Map<String, AttributeValue> expressionValues = new HashMap<>();
 			expressionValues.put(":fileId", AttributeValue.builder().s(fileId).build());
 
@@ -254,6 +258,10 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 	public Map<String, AttributeValue> getDataByWorkflowStatusId(String tableName, String id) {
 
 		try {
+			
+			if (id == null || id.isEmpty()) {
+				throw new DynamicDynamoServiceException("Workflow status id is empty while  retireving workflow status data.");
+			}
 
 			Map<String, AttributeValue> expressionValues = new HashMap<>();
 			expressionValues.put(":id", AttributeValue.builder().s(id).build());
@@ -285,20 +293,26 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 			key.put("id", AttributeValue.builder().s(workflowStatus.getId()).build());
 
 			Map<String, AttributeValueUpdate> updates = new HashMap<>();
-			updates.put("ruleStatus",
-					AttributeValueUpdate.builder()
-							.value(AttributeValue.builder().s(workflowStatus.getRuleStatus()).build())
-							.action(AttributeAction.PUT).build());
+			if (workflowStatus.getRuleStatus() != null) {
+				updates.put("ruleStatus",
+						AttributeValueUpdate.builder()
+								.value(AttributeValue.builder().s(workflowStatus.getRuleStatus()).build())
+								.action(AttributeAction.PUT).build());
+			}
 
-			updates.put("finalStatus",
-					AttributeValueUpdate.builder()
-							.value(AttributeValue.builder().s(workflowStatus.getFinalStatus()).build())
-							.action(AttributeAction.PUT).build());
+			if (workflowStatus.getFinalStatus() != null) {
+				updates.put("finalStatus",
+						AttributeValueUpdate.builder()
+								.value(AttributeValue.builder().s(workflowStatus.getFinalStatus()).build())
+								.action(AttributeAction.PUT).build());
+			}
 
-			updates.put("message",
-					AttributeValueUpdate.builder()
-							.value(AttributeValue.builder().s(workflowStatus.getMessage()).build())
-							.action(AttributeAction.PUT).build());
+			if (workflowStatus.getMessage() != null) {
+				updates.put("message",
+						AttributeValueUpdate.builder()
+								.value(AttributeValue.builder().s(workflowStatus.getMessage()).build())
+								.action(AttributeAction.PUT).build());
+			}
 
 			UpdateItemRequest updateRequest = UpdateItemRequest.builder().tableName(tableName).key(key)
 					.attributeUpdates(updates).build();

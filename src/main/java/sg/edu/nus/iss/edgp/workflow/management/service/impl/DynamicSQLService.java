@@ -24,12 +24,11 @@ public class DynamicSQLService implements IDynamicSQLService {
 	private static final Logger logger = LoggerFactory.getLogger(DynamicSQLService.class);
 
 	@Override
-	public void buildCreateTableSQL(Map<String, Object> data) {
+	public void buildCreateTableSQL(Map<String, Object> data, String tableName) {
 
 		try {
 
 			StringBuilder result = new StringBuilder();
-			String tableName = (String) data.get("category");
 
 			Iterator<Map.Entry<String, Object>> iterator = data.entrySet().iterator();
 
