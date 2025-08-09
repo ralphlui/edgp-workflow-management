@@ -66,10 +66,13 @@ public class WorkflowController {
 			logger.info("all data list size {}", resultMap.size());
 
 			
-			int totalRecord = resultMap.size();
-			logger.info("totalRecord: {}", totalRecord);
 
 			if (!resultMap.isEmpty()) {
+				
+				int totalRecord = (int) resultMap.get(resultMap.size() - 1).get("totalCount");
+				logger.info("totalRecord: {}", totalRecord);
+				resultMap.remove(resultMap.size() - 1);
+				
 				message = "Successfully retrieved all data list.";
 				logger.info(message);
 				auditService.logAudit(auditDTO, 200, message, authorizationHeader);

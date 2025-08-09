@@ -164,8 +164,8 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 
 		} catch (Exception ex) {
 			logger.error("An error occurred while retireving file status data by file id.... {}", ex);
-			throw new DynamicDynamoServiceException(
-					"An error occurred while retireving file status data by file id", ex);
+			throw new DynamicDynamoServiceException("An error occurred while retireving file status data by file id",
+					ex);
 		}
 
 	}
@@ -311,11 +311,11 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 		}
 	}
 
-	public List<Map<String, AttributeValue>> retrieveDataList(String tableName, String fileId, String status,
+	@Override
+	public Map<String, Object> retrieveDataList(String tableName, String fileId, String status,
 			SearchRequest searchRequest) {
 
 		try {
-
 			Map<String, AttributeValue> expressionValues = new HashMap<>();
 			List<String> filterConditions = new ArrayList<>();
 
@@ -331,41 +331,12 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 
 			Map<String, AttributeValue> lastEvaluatedKey = null;
 
-			// Case 1: No pagination → retrieve all
-			if (searchRequest.getPage() == null || searchRequest.getSize() == null) {
-				List<Map<String, AttributeValue>> finalItems = new ArrayList<>();
-				do {
-					ScanRequest.Builder scanBuilder = ScanRequest.builder().tableName(tableName);
+			List<Map<String, AttributeValue>> allFilteredItems = new ArrayList<>();
 
-					if (!filterConditions.isEmpty()) {
-						scanBuilder.filterExpression(String.join(" AND ", filterConditions))
-								.expressionAttributeValues(expressionValues);
-					}
-
-					if (lastEvaluatedKey != null) {
-						scanBuilder.exclusiveStartKey(lastEvaluatedKey);
-					}
-
-					ScanResponse response = dynamoDbClient.scan(scanBuilder.build());
-					finalItems.addAll(response.items());
-					lastEvaluatedKey = response.lastEvaluatedKey();
-				} while (lastEvaluatedKey != null && !lastEvaluatedKey.isEmpty());
-
-				finalItems.sort(Comparator.comparing(item -> item.get("id").s())); // or .n() for numeric id
-
-				return finalItems;
-			}
-
-			// Case 2: Paginated fetch
-			int size = searchRequest.getSize();
-			int page = searchRequest.getPage();
-			int fromIndex = (page - 1) * size;
-			int toIndex = fromIndex + size;
-
-			List<Map<String, AttributeValue>> filteredItems = new ArrayList<>();
-
+// Common scan loop (used for both paginated and non-paginated)
 			do {
-				ScanRequest.Builder scanBuilder = ScanRequest.builder().tableName(tableName).limit(50);
+				ScanRequest.Builder scanBuilder = ScanRequest.builder().tableName(tableName).limit(50); // Optional scan
+																										// page size
 
 				if (!filterConditions.isEmpty()) {
 					scanBuilder.filterExpression(String.join(" AND ", filterConditions))
@@ -377,25 +348,43 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 				}
 
 				ScanResponse response = dynamoDbClient.scan(scanBuilder.build());
-				filteredItems.addAll(response.items());
+				allFilteredItems.addAll(response.items());
 				lastEvaluatedKey = response.lastEvaluatedKey();
 
 			} while (lastEvaluatedKey != null && !lastEvaluatedKey.isEmpty());
 
-			// Sort the filtered list by id (ascending)
-			filteredItems.sort(Comparator.comparing(item -> item.get("id").s()));
 
-			// Paginate
-			if (fromIndex >= filteredItems.size()) {
-				return Collections.emptyList(); // Page out of range
+			allFilteredItems.sort(Comparator.comparing(item -> item.get("id").s()));
+
+			Map<String, Object> result = new HashMap<>();
+			result.put("totalCount", allFilteredItems.size());
+
+// Case 1: No pagination – return all items with total
+			if (searchRequest.getPage() == null || searchRequest.getSize() == null) {
+				result.put("items", allFilteredItems);
+				return result;
 			}
 
-			return filteredItems.subList(fromIndex, Math.min(toIndex, filteredItems.size()));
+// Case 2: Paginated result
+			int size = searchRequest.getSize();
+			int page = searchRequest.getPage();
+			int fromIndex = (page - 1) * size;
+			int toIndex = fromIndex + size;
+
+			if (fromIndex >= allFilteredItems.size()) {
+				result.put("items", Collections.emptyList());
+				return result;
+			}
+
+			List<Map<String, AttributeValue>> paginatedItems = allFilteredItems.subList(fromIndex,
+					Math.min(toIndex, allFilteredItems.size()));
+
+			result.put("items", paginatedItems);
+			return result;
 
 		} catch (Exception ex) {
 			logger.error("An error occurred while retrieving data list.... {}", ex);
 			throw new DynamicDynamoServiceException("An error occurred while retrieving data list", ex);
 		}
-
 	}
 }

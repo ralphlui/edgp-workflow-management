@@ -156,15 +156,21 @@ public class WorkflowService implements IWorkflowService {
 		}
 	}
 
+    @Override
 	public List<Map<String, Object>> retrieveDataList(String fileId, String status, SearchRequest searchRequest) {
 
 		try {
 			String workflowStatusTable = DynamoConstants.MASTER_DATA_TABLE_NAME;
-			List<Map<String, AttributeValue>> results = dynamoService.retrieveDataList(workflowStatusTable, fileId,
+			Map<String, Object> result = dynamoService.retrieveDataList(workflowStatusTable, fileId,
 					status, searchRequest);
+			
+			@SuppressWarnings("unchecked")
+			List<Map<String, AttributeValue>> items = (List<Map<String, AttributeValue>>) result.get("items");
+			Map<String, Object> totalCountMap = new HashMap<>();
+			totalCountMap.put("totalCount", result.get("totalCount"));
+		
 			List<Map<String, Object>> dynamicList = new ArrayList<>();
-
-			for (Map<String, AttributeValue> item : results) {
+			for (Map<String, AttributeValue> item : items) {
 				Map<String, Object> dynamicItem = new HashMap<>();
 
 				for (Map.Entry<String, AttributeValue> entry : item.entrySet()) {
@@ -214,7 +220,7 @@ public class WorkflowService implements IWorkflowService {
 
 				dynamicList.add(dynamicItem);
 			}
-
+			dynamicList.add(totalCountMap);
 			return dynamicList;
 		} catch (Exception ex) {
 			logger.error("An error occurred while retireving data list.... {}", ex);
