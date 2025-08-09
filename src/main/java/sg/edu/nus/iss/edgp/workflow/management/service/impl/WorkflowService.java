@@ -20,6 +20,7 @@ import sg.edu.nus.iss.edgp.workflow.management.exception.WorkflowServiceExceptio
 import sg.edu.nus.iss.edgp.workflow.management.service.IWorkflowService;
 import sg.edu.nus.iss.edgp.workflow.management.utility.DynamoConstants;
 import sg.edu.nus.iss.edgp.workflow.management.utility.FileMetricsConstants;
+import sg.edu.nus.iss.edgp.workflow.management.utility.Status;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
 @RequiredArgsConstructor
@@ -30,19 +31,22 @@ public class WorkflowService implements IWorkflowService {
 	private final DynamicSQLService dynamicSQLService;
 	private static final Logger logger = LoggerFactory.getLogger(WorkflowService.class);
 
+	@SuppressWarnings("unchecked")
 	@Override
-	public void updateWorkflowStatus(Map<String, Object> data) {
+	public void updateWorkflowStatus(Map<String, Object> rawData) {
 
 		try {
-			String status = (String) data.get("status");
-			String workflowStatusId = (String) data.get("id");
-			String fileId = (String) data.get("fileId");
-			String message = (String) data.get("message");
-			String totalRowsCount = (String) data.get("totalRowsCount");
+			String status = (String) rawData.get("status");
+			Map<String, Object> data = (Map<String, Object>) rawData.get("data");
+			String fileId = (String) rawData.get("file_id");
+			String message = (String) rawData.get("message");
+			String totalRowsCount = (String) rawData.get("totalRowsCount");
+			String workflowStatusId = "";
 
-			if (workflowStatusId != null) {
+			if (data != null) {
+				workflowStatusId = (String) data.get("id");
 				data.remove("id");
-				data.put("workflowStatusId", workflowStatusId);
+				data.put("workflowId", workflowStatusId);
 			}
 
 			updateFileStatus(status, fileId, totalRowsCount);
@@ -59,17 +63,19 @@ public class WorkflowService implements IWorkflowService {
 			if (workflowStatusData == null || workflowStatusData.isEmpty()) {
 
 				DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-				Map<String, String> workflosStatus = new HashMap<String, String>();
+				Map<String, String> workflowStatus = new HashMap<String, String>();
 				String uploadedDate = LocalDateTime.now().format(formatter);
-				workflosStatus.put("id", UUID.randomUUID().toString());
-				workflosStatus.put("workflowStatusId", workflowStatusId);
-				workflosStatus.put("fileId", fileId);
-				workflosStatus.put("ruleStatus", status);
-				workflosStatus.put("finalStatus", status);
-				workflosStatus.put("message", message);
-				workflosStatus.put("uploadedDate", uploadedDate);
+				putIfNotNull(workflowStatus, "workflowStatusId", workflowStatusId);
+				putIfNotNull(workflowStatus, "fileId", fileId);
+				putIfNotNull(workflowStatus, "ruleStatus", status);
+				putIfNotNull(workflowStatus, "finalStatus", status);
+				putIfNotNull(workflowStatus, "message", message);
 
-				dynamoService.insertWorkFlowStatusData(workflowStatusTable, workflosStatus);
+				// Always present
+				workflowStatus.put("id", UUID.randomUUID().toString());
+				workflowStatus.put("uploadedDate", uploadedDate);
+
+				dynamoService.insertWorkFlowStatusData(workflowStatusTable, workflowStatus);
 
 			} else {
 				WorkflowStatus workflowStatus = new WorkflowStatus();
@@ -80,14 +86,22 @@ public class WorkflowService implements IWorkflowService {
 				dynamoService.updateWorkflowStatus(workflowStatusTable, workflowStatus);
 			}
 
+			String categoryTableName = (String) rawData.get("category");
 			switch (status) {
-			case "S" -> dynamicSQLService.buildCreateTableSQL(data);
+			case "success" -> dynamicSQLService.buildCreateTableSQL(data, categoryTableName);
+
 			}
 		} catch (Exception ex) {
 			logger.error("An error occurred while updating workflow status.... {}", ex);
 			throw new WorkflowServiceException("An error occurred while updating workflow status", ex);
 		}
 
+	}
+
+	private void putIfNotNull(Map<String, String> map, String key, String value) {
+		if (value != null) {
+			map.put(key, value);
+		}
 	}
 
 	private void updateFileStatus(String status, String fileId, String totalRowsCount) {
@@ -112,11 +126,11 @@ public class WorkflowService implements IWorkflowService {
 				fileStatus.put(FileMetricsConstants.FAILED_COUNT, "0");
 				fileStatus.put(FileMetricsConstants.QUARANTINED_COUNT, "0");
 
-				switch (status) {
-				case "S" -> fileStatus.put(FileMetricsConstants.SUCCESS_COUNT, "1");
-				case "R" -> fileStatus.put(FileMetricsConstants.REJECTED_COUNT, "1");
-				case "F" -> fileStatus.put(FileMetricsConstants.FAILED_COUNT, "1");
-				case "Q" -> fileStatus.put(FileMetricsConstants.QUARANTINED_COUNT, "1");
+				switch (Status.valueOf(status.toUpperCase())) {
+				case SUCCESS -> fileStatus.put(FileMetricsConstants.SUCCESS_COUNT, "1");
+				case REJECT -> fileStatus.put(FileMetricsConstants.REJECTED_COUNT, "1");
+				case FAIL -> fileStatus.put(FileMetricsConstants.FAILED_COUNT, "1");
+				case QUARANTINE -> fileStatus.put(FileMetricsConstants.QUARANTINED_COUNT, "1");
 				}
 
 				dynamoService.insertFileStatusData(fileStatusTable, fileStatus);
@@ -134,11 +148,11 @@ public class WorkflowService implements IWorkflowService {
 				processedCount += 1;
 				fileStatus.setProcessedCount(String.valueOf(processedCount));
 
-				switch (status) {
-				case "S" -> successCount++;
-				case "R" -> rejectedCount++;
-				case "F" -> failedCount++;
-				case "Q" -> quarantineCount++;
+				switch (Status.valueOf(status.toUpperCase())) {
+				case SUCCESS -> successCount++;
+				case REJECT -> rejectedCount++;
+				case FAIL -> failedCount++;
+				case QUARANTINE -> quarantineCount++;
 				}
 
 				fileStatus.setSuccessCount(String.valueOf(successCount));
@@ -156,19 +170,19 @@ public class WorkflowService implements IWorkflowService {
 		}
 	}
 
-    @Override
+	@Override
 	public List<Map<String, Object>> retrieveDataList(String fileId, String status, SearchRequest searchRequest) {
 
 		try {
 			String workflowStatusTable = DynamoConstants.MASTER_DATA_TABLE_NAME;
-			Map<String, Object> result = dynamoService.retrieveDataList(workflowStatusTable, fileId,
-					status, searchRequest);
-			
+			Map<String, Object> result = dynamoService.retrieveDataList(workflowStatusTable, fileId, status,
+					searchRequest);
+
 			@SuppressWarnings("unchecked")
 			List<Map<String, AttributeValue>> items = (List<Map<String, AttributeValue>>) result.get("items");
 			Map<String, Object> totalCountMap = new HashMap<>();
 			totalCountMap.put("totalCount", result.get("totalCount"));
-		
+
 			List<Map<String, Object>> dynamicList = new ArrayList<>();
 			for (Map<String, AttributeValue> item : items) {
 				Map<String, Object> dynamicItem = new HashMap<>();
