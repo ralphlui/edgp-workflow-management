@@ -34,7 +34,6 @@ public class JWTFilter extends OncePerRequestFilter {
 	 
 
 	private String userID;
-	private String userName;
 	private String apiEndpoint;
 	private HTTPVerb httpMethod;
  
@@ -49,7 +48,6 @@ public class JWTFilter extends OncePerRequestFilter {
 	    httpMethod = HTTPVerb.valueOf(methodName);
 	    
 	    userID = AuditLogInvalidUser.INVALID_USER_ID.toString();
-	    userName = AuditLogInvalidUser.INVALID_USER_NAME.toString();
 	   
 		if (authHeader == null || !authHeader.startsWith("Bearer ")) {
 			handleException(response, "Authorization header is missing or invalid.",
@@ -63,7 +61,6 @@ public class JWTFilter extends OncePerRequestFilter {
 		if (SecurityContextHolder.getContext().getAuthentication() == null && !jwtToken.isEmpty()) {
 			try {
 		    userID = jwtService.extractUserIdAllowExpiredToken(jwtToken);	
-		    userName = jwtService.extractUserNameAllowExpiredToken(jwtToken);
 		    UserDetails userDetails = jwtService.getUserDetail(authHeader, jwtToken);
 				if (jwtService.validateToken(jwtToken, userDetails)) {
 					UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(

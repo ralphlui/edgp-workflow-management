@@ -3,7 +3,6 @@ package sg.edu.nus.iss.edgp.workflow.management.jwt;
 import java.util.function.Function;
 
 import org.json.simple.JSONObject;
-import org.springframework.context.ApplicationContext;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
@@ -24,7 +23,6 @@ import java.util.Date;
 @RequiredArgsConstructor
 public class JWTService {
 	
-	private final ApplicationContext context;
 	
 	private final JWTConfig jwtConfig;
 	private final JSONReader jsonReader; 

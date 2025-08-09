@@ -31,7 +31,7 @@ public class SQSListenerService {
 				Map<String, Object> dynamicJson = objectMapper.readValue(message,
 						new TypeReference<Map<String, Object>>() {
 						});
-				logger.info("Message parsed successfully in receive rule response SqsListener {}", dynamicJson);
+				logger.info("Message parsed successfully in receive rule response SqsListener.");
 				workflowService.updateWorkflowStatus(dynamicJson);
 			} catch (Exception e) {
 				logger.error("Error parsing message from rule response SQS: Invalid format or structure", e);
