@@ -1,7 +1,9 @@
-package sg.edu.nus.iss.edgp.workflow.management;
+package sg.edu.nus.iss.edgp.workflow.management.strategy.impl;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+
+import java.util.Objects;
 
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -12,7 +14,7 @@ import org.slf4j.LoggerFactory;
 import lombok.RequiredArgsConstructor;
 import sg.edu.nus.iss.edgp.workflow.management.api.connector.OrganizationAPICall;
 import sg.edu.nus.iss.edgp.workflow.management.dto.ValidationResult;
-import sg.edu.nus.iss.edgp.workflow.management.stragety.IAPIHelperValidationStrategy;
+import sg.edu.nus.iss.edgp.workflow.management.stragtegy.IAPIHelperValidationStrategy;
 import sg.edu.nus.iss.edgp.workflow.management.utility.JSONReader;
 
 @Service
@@ -27,6 +29,19 @@ public class WorkflowValidationStrategy implements IAPIHelperValidationStrategy<
 	    return validateActive(userOrgId, authHeader);
 	}
 	
+
+	public ValidationResult isUserOrganizationValidAndActive(String orgId, String userOrgId, String authHeader) {
+	   
+	    ValidationResult activeCheck = validateActive(userOrgId, authHeader);
+	    if (!activeCheck.isValid()) return activeCheck;
+
+	    if (!Objects.equals(userOrgId, orgId)) {
+	        return buildInvalidResult("Unauthorized to view this data.");
+	    }
+
+	    return activeCheck; 
+	}
+	
 	private ValidationResult validateActive(String userOrgId, String authHeader) {
 	    if (isBlank(userOrgId)) {
 	        return buildInvalidResult("Organization ID missing or invalid in token");
@@ -34,7 +49,7 @@ public class WorkflowValidationStrategy implements IAPIHelperValidationStrategy<
 
 	    boolean isActive = Boolean.TRUE.equals(validateActiveOrganization(userOrgId, authHeader));
 	    if (!isActive) {
-	        return buildInvalidResult("Invalid organization. Unable to view policy.");
+	        return buildInvalidResult("Invalid organization. Unable to view data.");
 	    }
 
 	    ValidationResult validationResult = new ValidationResult();

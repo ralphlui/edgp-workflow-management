@@ -121,6 +121,33 @@ public class WorkflowService implements IWorkflowService {
 		}
 
 	}
+	
+	@Override
+	public Map<String, Object> retrieveDataRecordDetailbyWorkflowId(String workflowStatusId) {
+
+		try {
+			
+			Map<String, AttributeValue> workflowStatusData = dynamoService
+					.getDataByWorkflowStatusId(DynamoConstants.MASTER_DATA_TASK_TRACKER_TABLE_NAME, workflowStatusId);
+			
+			if (workflowStatusData == null || workflowStatusData.isEmpty()) {
+				throw new WorkflowServiceException("No matching workflow data found");
+			}
+
+			logger.info("retrieved data record by workflow id");
+			Map<String, Object> dynamicItem = dynamoItemToJavaMap(workflowStatusData);
+			logger.info("converted dynamo Item to Map while retireving workflow data record by id");
+			return dynamicItem;
+			
+		} catch (Exception ex) {
+			logger.error("An error occurred while retireving workflow data record by id.... {}", ex);
+			throw new WorkflowServiceException("An error occurred while retireving workflow data record by id", ex);
+		}
+
+	}
+	
+	
+	
 
 	private Map<String, Object> dynamoItemToJavaMap(Map<String, AttributeValue> itemAttributes) {
 		Map<String, Object> plainItem = new HashMap<>();

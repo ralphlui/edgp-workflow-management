@@ -19,7 +19,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import sg.edu.nus.iss.edgp.workflow.management.WorkflowValidationStrategy;
 import sg.edu.nus.iss.edgp.workflow.management.dto.APIResponse;
 import sg.edu.nus.iss.edgp.workflow.management.dto.AuditDTO;
 import sg.edu.nus.iss.edgp.workflow.management.dto.SearchRequest;
@@ -29,6 +28,7 @@ import sg.edu.nus.iss.edgp.workflow.management.exception.WorkflowServiceExceptio
 import sg.edu.nus.iss.edgp.workflow.management.jwt.JWTService;
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.AuditService;
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.WorkflowService;
+import sg.edu.nus.iss.edgp.workflow.management.strategy.impl.WorkflowValidationStrategy;
 
 @RestController
 @RequiredArgsConstructor
@@ -106,5 +106,57 @@ public class WorkflowController {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(APIResponse.error(message));
 		}
 	}
+	
+	
+	@GetMapping(value = "/my-data", produces = "application/json")
+	@PreAuthorize("hasAuthority('SCOPE_manage:mdm') or hasAuthority('SCOPE_view:mdm')")
+	public ResponseEntity<APIResponse<Map<String, Object>>> getWorkflowDataById(
+			@RequestHeader("Authorization") String authorizationHeader, @RequestHeader("X-WorkflowId") String workflowId) {
+		logger.info("Call viewing poloicy detail by poloicy id...");
+		
+		String message = "";
+		String activityType = "Retrieve workf flow by id";
+		String endpoint = "/api/wfm/my-data";
+		activityTypePrefix = activityTypePrefix.trim() + activityType;
+		String jwtToken = authorizationHeader.substring(7);
+		String userId = Optional.ofNullable(jwtService.extractUserIdFromToken(jwtToken)).orElse("Invalid UserId");
+		AuditDTO auditDTO = auditService.createAuditDTO(userId, activityType, activityTypePrefix, endpoint, HTTPVerb.GET);
+	
+		try {
+			
+			if (workflowId.isEmpty()) {
+				message = "Bad Request: Workflow id could not be blank.";
+				logger.error(message);
+				auditService.logAudit(auditDTO, 400, message, authorizationHeader);
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(message));
+			}
+			
+			Map<String, Object> dataRecord = workflowService.retrieveDataRecordDetailbyWorkflowId(workflowId);
+			String organizationId = (String) dataRecord.get("organization_id");
+			
+			String userOrgId = jwtService.extractOrgIdFromToken(jwtToken);
+			ValidationResult validationResult = workflowValidationStrategy.isUserOrganizationValidAndActive(organizationId, userOrgId, authorizationHeader);
+				
+				
+				if (!validationResult.isValid()) {
+				message = validationResult.getMessage();
+				logger.info(message);
+				auditService.logAudit(auditDTO, 401, message, authorizationHeader);
+				return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(message));
+			}
+			
+			message = "Requested data is available.";
+			logger.info(message);
+			auditService.logAudit(auditDTO, 200, message, authorizationHeader);
+			return ResponseEntity.status(HttpStatus.OK).body(APIResponse.success(dataRecord, message));
+			
+		} catch (Exception ex) {
+			message = ex instanceof WorkflowServiceException ? ex.getMessage() : genericErrorMessage;
+			logger.error(message);
+			auditService.logAudit(auditDTO, 500, message, authorizationHeader);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(APIResponse.error(message));
+		}	
+	}
+	
 	
 }

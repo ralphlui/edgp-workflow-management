@@ -10,4 +10,6 @@ public interface IWorkflowService {
 	void updateWorkflowStatus(Map<String, Object> data);
 	
 	List<Map<String, Object>> retrieveDataList(String fileId, SearchRequest searchRequest, String userOrdId);
+	
+	Map<String, Object> retrieveDataRecordDetailbyWorkflowId(String workflowStatusId);
 }
