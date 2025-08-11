@@ -34,6 +34,7 @@ public class WorkflowService implements IWorkflowService {
 		try {
 			String status = (String) rawData.get("status");
 			Map<String, Object> data = (Map<String, Object>) rawData.get("data");
+			List<Map<String, Object>> failedValidations = (List<Map<String, Object>>) rawData.get("failed_validations");
 			String workflowStatusId = "";
 
 			if (data != null) {
@@ -55,10 +56,15 @@ public class WorkflowService implements IWorkflowService {
 						"Workflow status update aborted: existing workflow status data not found.");
 
 			} else {
-
 				WorkflowStatus workflowStatus = new WorkflowStatus();
-				workflowStatus.setFinalStatus(status);
-				workflowStatus.setRuleStatus(status);
+				Optional.ofNullable(status).filter(s -> !s.isBlank()).ifPresent(s -> {
+					workflowStatus.setFinalStatus(s);
+					workflowStatus.setRuleStatus(s);
+				});
+
+				Optional.ofNullable(failedValidations).filter(list -> !list.isEmpty())
+						.ifPresent(list -> workflowStatus.setFailedValidations(List.copyOf(list)));
+
 				workflowStatus.setId(workflowStatusId);
 				dynamoService.updateWorkflowStatus(masterDataTaskTable, workflowStatus);
 				String domainTableName = (String) rawData.get("domain_name");
@@ -74,7 +80,7 @@ public class WorkflowService implements IWorkflowService {
 
 	private void insetCleanMasterData(String status, String domainTableName,
 			Map<String, AttributeValue> workflowStatusData) {
-		if (Status.SUCCESS.toString().equals(status.toUpperCase()) && !domainTableName.isEmpty()) {
+		if (status != null && Status.SUCCESS.toString().equals(status.toUpperCase()) && !domainTableName.isEmpty()) {
 			Map<String, Object> workflowStatusFields = dynamoItemToJavaMap(workflowStatusData);
 
 			Optional.ofNullable(workflowStatusFields.remove("id"))
@@ -103,53 +109,8 @@ public class WorkflowService implements IWorkflowService {
 
 			List<Map<String, Object>> dynamicList = new ArrayList<>();
 			for (Map<String, AttributeValue> item : items) {
-				Map<String, Object> dynamicItem = new HashMap<>();
 
-				for (Map.Entry<String, AttributeValue> entry : item.entrySet()) {
-					String key = entry.getKey();
-					AttributeValue value = entry.getValue();
-
-					if (value.s() != null) {
-						dynamicItem.put(key, value.s());
-					} else if (value.n() != null) {
-						dynamicItem.put(key, value.n());
-					} else if (value.bool() != null) {
-						dynamicItem.put(key, value.bool());
-
-					} else if (value.n() != null) {
-						dynamicItem.put(key, value.n());
-					} else if (value.hasL()) {
-						List<Object> list = new ArrayList<>();
-						for (AttributeValue listVal : value.l()) {
-							if (listVal.s() != null)
-								list.add(listVal.s());
-							else if (listVal.n() != null)
-								list.add(listVal.n());
-							else if (listVal.bool() != null)
-								list.add(listVal.bool());
-							else
-								list.add(listVal.toString()); // fallback
-						}
-						dynamicItem.put(key, list);
-					} else if (value.hasM()) {
-						Map<String, Object> nestedMap = new HashMap<>();
-						for (Map.Entry<String, AttributeValue> nestedEntry : value.m().entrySet()) {
-							AttributeValue nestedVal = nestedEntry.getValue();
-							if (nestedVal.s() != null)
-								nestedMap.put(nestedEntry.getKey(), nestedVal.s());
-							else if (nestedVal.n() != null)
-								nestedMap.put(nestedEntry.getKey(), nestedVal.n());
-							else if (nestedVal.bool() != null)
-								nestedMap.put(nestedEntry.getKey(), nestedVal.bool());
-							else
-								nestedMap.put(nestedEntry.getKey(), nestedVal.toString()); // fallback
-						}
-						dynamicItem.put(key, nestedMap);
-					} else {
-						dynamicItem.put(key, value.toString()); // fallback for unknown types
-					}
-				}
-
+				Map<String, Object> dynamicItem = dynamoItemToJavaMap(item);
 				dynamicList.add(dynamicItem);
 			}
 			dynamicList.add(totalCountMap);
@@ -163,49 +124,46 @@ public class WorkflowService implements IWorkflowService {
 
 	private Map<String, Object> dynamoItemToJavaMap(Map<String, AttributeValue> itemAttributes) {
 		Map<String, Object> plainItem = new HashMap<>();
-
 		for (Map.Entry<String, AttributeValue> attrEntry : itemAttributes.entrySet()) {
-			String attrName = attrEntry.getKey();
-			AttributeValue attrValue = attrEntry.getValue();
-
-			if (attrValue.s() != null) {
-				plainItem.put(attrName, attrValue.s());
-			} else if (attrValue.n() != null) {
-				plainItem.put(attrName, attrValue.n());
-			} else if (attrValue.bool() != null) {
-				plainItem.put(attrName, attrValue.bool());
-			} else if (attrValue.hasL()) {
-				List<Object> listValues = new ArrayList<>();
-				for (AttributeValue element : attrValue.l()) {
-					if (element.s() != null)
-						listValues.add(element.s());
-					else if (element.n() != null)
-						listValues.add(element.n());
-					else if (element.bool() != null)
-						listValues.add(element.bool());
-					else
-						listValues.add(element.toString()); // fallback
-				}
-				plainItem.put(attrName, listValues);
-			} else if (attrValue.hasM()) {
-				Map<String, Object> mapValue = new HashMap<>();
-				for (Map.Entry<String, AttributeValue> mapEntry : attrValue.m().entrySet()) {
-					AttributeValue fieldValue = mapEntry.getValue();
-					if (fieldValue.s() != null)
-						mapValue.put(mapEntry.getKey(), fieldValue.s());
-					else if (fieldValue.n() != null)
-						mapValue.put(mapEntry.getKey(), fieldValue.n());
-					else if (fieldValue.bool() != null)
-						mapValue.put(mapEntry.getKey(), fieldValue.bool());
-					else
-						mapValue.put(mapEntry.getKey(), fieldValue.toString()); // fallback
-				}
-				plainItem.put(attrName, mapValue);
-			} else {
-				plainItem.put(attrName, attrValue.toString()); // fallback for unknown types
-			}
+			plainItem.put(attrEntry.getKey(), convertAttributeValue(attrEntry.getValue()));
 		}
 		return plainItem;
+	}
+
+	private Object convertAttributeValue(AttributeValue attrValue) {
+		if (attrValue.s() != null) {
+			return attrValue.s();
+		}
+		if (attrValue.n() != null) {
+			return attrValue.n(); // keep as string, or parse to Number if you want
+		}
+		if (attrValue.bool() != null) {
+			return attrValue.bool();
+		}
+		if (attrValue.hasL()) {
+			List<Object> listValues = new ArrayList<>();
+			for (AttributeValue element : attrValue.l()) {
+				listValues.add(convertAttributeValue(element)); // recursive call
+			}
+			return listValues;
+		}
+		if (attrValue.hasM()) {
+			Map<String, Object> mapValue = new HashMap<>();
+			for (Map.Entry<String, AttributeValue> mapEntry : attrValue.m().entrySet()) {
+				mapValue.put(mapEntry.getKey(), convertAttributeValue(mapEntry.getValue())); // recursive call
+			}
+			return mapValue;
+		}
+		if (attrValue.hasSs()) {
+			return new ArrayList<>(attrValue.ss());
+		}
+		if (attrValue.hasNs()) {
+			return new ArrayList<>(attrValue.ns());
+		}
+		if (attrValue.hasBs()) {
+			return new ArrayList<>(attrValue.bs());
+		}
+		return null; // or attrValue.toString() if you want a fallback
 	}
 
 }

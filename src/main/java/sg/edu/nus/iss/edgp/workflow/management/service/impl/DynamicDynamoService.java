@@ -16,6 +16,7 @@ import sg.edu.nus.iss.edgp.workflow.management.dto.SearchRequest;
 import sg.edu.nus.iss.edgp.workflow.management.dto.WorkflowStatus;
 import sg.edu.nus.iss.edgp.workflow.management.exception.DynamicDynamoServiceException;
 import sg.edu.nus.iss.edgp.workflow.management.service.IDynamicDynamoService;
+import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeDefinition;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
@@ -138,6 +139,21 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 				set.append("#fs = :fs");
 			}
 
+			if (workflowStatus.getFailedValidations() != null) {
+				if (n++ > 0)
+					set.append(", ");
+				names.put("#fv", "failed_validations");
+
+				List<AttributeValue> fvList = new ArrayList<>();
+				for (Map<String, Object> item : workflowStatus.getFailedValidations()) {
+					fvList.add(AttributeValue.builder().m(toAvMap(item)).build());
+				}
+				values.put(":fv", AttributeValue.builder().l(fvList).build());
+				values.put(":empty", AttributeValue.builder().l(Collections.emptyList()).build());
+
+				// Always create list if missing, then append
+				set.append("#fv = list_append(if_not_exists(#fv, :empty), :fv)");
+			}
 			if (n == 0)
 				return;
 
@@ -148,9 +164,49 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 			dynamoDbClient.updateItem(req);
 
 		} catch (Exception ex) {
-			logger.error("Failed to upsert workflow status", ex);
+			logger.error("Failed to update workflow status", ex);
 			throw new DynamicDynamoServiceException("Error updating workflow status", ex);
 		}
+	}
+
+	private Map<String, AttributeValue> toAvMap(Map<String, Object> map) {
+		Map<String, AttributeValue> out = new HashMap<>();
+		for (Map.Entry<String, Object> e : map.entrySet()) {
+			Object v = e.getValue();
+			if (v == null)
+				continue; // DynamoDB doesn't store nulls
+			out.put(e.getKey(), toAv(v));
+		}
+		return out;
+	}
+
+	private AttributeValue toAv(Object v) {
+		if (v instanceof String s)
+			return AttributeValue.builder().s(s).build();
+		if (v instanceof Number n)
+			return AttributeValue.builder().n(n.toString()).build();
+		if (v instanceof Boolean b)
+			return AttributeValue.builder().bool(b).build();
+		if (v instanceof byte[] b)
+			return AttributeValue.builder().b(SdkBytes.fromByteArray(b)).build();
+		if (v instanceof List<?> list) {
+			List<AttributeValue> l = new ArrayList<>();
+			for (Object o : list)
+				l.add(toAv(o));
+			return AttributeValue.builder().l(l).build();
+		}
+		if (v instanceof Map<?, ?> m) {
+			Map<String, AttributeValue> mm = new HashMap<>();
+			for (Map.Entry<?, ?> me : m.entrySet()) {
+				Object key = me.getKey();
+				Object val = me.getValue();
+				if (key != null && val != null)
+					mm.put(key.toString(), toAv(val));
+			}
+			return AttributeValue.builder().m(mm).build();
+		}
+		// Fallback: store as string
+		return AttributeValue.builder().s(v.toString()).build();
 	}
 
 	@Override
@@ -162,13 +218,13 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 			List<String> filterConditions = new ArrayList<>();
 
 			if (fileId != null && !fileId.isEmpty()) {
-				filterConditions.add("fileId = :fileId");
-				expressionValues.put(":fileId", AttributeValue.builder().s(fileId).build());
+				filterConditions.add("file_id = :file_id");
+				expressionValues.put(":file_id", AttributeValue.builder().s(fileId).build());
 			}
 
 			if (status != null && !status.isEmpty()) {
-				filterConditions.add("finalStatus = :finalStatus");
-				expressionValues.put(":finalStatus", AttributeValue.builder().s(status).build());
+				filterConditions.add("final_status = :final_status");
+				expressionValues.put(":final_status", AttributeValue.builder().s(status).build());
 			}
 
 			Map<String, AttributeValue> lastEvaluatedKey = null;
