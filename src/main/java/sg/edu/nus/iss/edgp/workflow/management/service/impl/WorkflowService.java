@@ -95,12 +95,12 @@ public class WorkflowService implements IWorkflowService {
 	}
 
 	@Override
-	public List<Map<String, Object>> retrieveDataList(String fileId, String status, SearchRequest searchRequest) {
+	public List<Map<String, Object>> retrieveDataList(String fileId, SearchRequest searchRequest, String userOrgId) {
 
 		try {
 			String masterDataTaskTable = DynamoConstants.MASTER_DATA_TASK_TRACKER_TABLE_NAME;
-			Map<String, Object> result = dynamoService.retrieveDataList(masterDataTaskTable, fileId, status,
-					searchRequest);
+			Map<String, Object> result = dynamoService.retrieveDataList(masterDataTaskTable, fileId,
+					searchRequest, userOrgId);
 
 			@SuppressWarnings("unchecked")
 			List<Map<String, AttributeValue>> items = (List<Map<String, AttributeValue>>) result.get("items");

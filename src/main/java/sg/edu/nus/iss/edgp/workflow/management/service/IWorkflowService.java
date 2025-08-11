@@ -9,5 +9,5 @@ public interface IWorkflowService {
 
 	void updateWorkflowStatus(Map<String, Object> data);
 	
-	List<Map<String, Object>> retrieveDataList(String fileId, String status, SearchRequest searchRequest);
+	List<Map<String, Object>> retrieveDataList(String fileId, SearchRequest searchRequest, String userOrdId);
 }

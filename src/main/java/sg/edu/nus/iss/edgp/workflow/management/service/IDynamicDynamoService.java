@@ -16,6 +16,6 @@ public interface IDynamicDynamoService {
 
 	void updateWorkflowStatus(String tableName, WorkflowStatus workflowStatus);
 
-	Map<String, Object> retrieveDataList(String tableName, String fileId, String status, SearchRequest searchRequest);
-
+	Map<String, Object> retrieveDataList(String tableName, String fileId,
+			SearchRequest searchRequest, String userOrgId);
 }

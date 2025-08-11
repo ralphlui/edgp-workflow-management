@@ -210,21 +210,24 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 	}
 
 	@Override
-	public Map<String, Object> retrieveDataList(String tableName, String fileId, String status,
-			SearchRequest searchRequest) {
+	public Map<String, Object> retrieveDataList(String tableName, String fileId,
+			SearchRequest searchRequest, String userOrgId) {
 
 		try {
 			Map<String, AttributeValue> expressionValues = new HashMap<>();
 			List<String> filterConditions = new ArrayList<>();
+			
+			filterConditions.add("organization_id = :organization_id");
+			expressionValues.put(":organization_id", AttributeValue.builder().s(userOrgId).build());
 
 			if (fileId != null && !fileId.isEmpty()) {
 				filterConditions.add("file_id = :file_id");
 				expressionValues.put(":file_id", AttributeValue.builder().s(fileId).build());
 			}
 
-			if (status != null && !status.isEmpty()) {
+			if (searchRequest.getStatus() != null && !searchRequest.getStatus().isEmpty()) {
 				filterConditions.add("final_status = :final_status");
-				expressionValues.put(":final_status", AttributeValue.builder().s(status).build());
+				expressionValues.put(":final_status", AttributeValue.builder().s(searchRequest.getStatus()).build());
 			}
 
 			Map<String, AttributeValue> lastEvaluatedKey = null;
