@@ -15,6 +15,7 @@ import sg.edu.nus.iss.edgp.workflow.management.service.IWorkflowService;
 import sg.edu.nus.iss.edgp.workflow.management.utility.DynamoConstants;
 import sg.edu.nus.iss.edgp.workflow.management.utility.FileMetricsConstants;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
 
 @RequiredArgsConstructor
 @Service
@@ -141,4 +142,11 @@ public class WorkflowService implements IWorkflowService {
 			return defaultValue;
 		}
 	}
+
+	@Override
+	public boolean isFileProcessed(String fileId) {
+		return dynamoService.isFileProcessed(fileId);
+	}
+	
+
 }

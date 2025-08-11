@@ -28,7 +28,7 @@ public class SQSRuleRequestListenerService {
 	public void forwardToRulesRequestQueue(Map<String, Object> payload) {
         try {
            
-            if (!payload.containsKey("data")) {
+            if (!payload.containsKey("data_entry")) {
                 logger.warn("Payload missing required field 'data'");
                 return;
             }

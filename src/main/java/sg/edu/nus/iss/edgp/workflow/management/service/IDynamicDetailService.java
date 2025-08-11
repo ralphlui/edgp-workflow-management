@@ -23,5 +23,7 @@ public interface IDynamicDetailService {
 	Map<String, AttributeValue> getDataByWorkflowStatusId(String tableName, String id);
 
 	void updateWorkflowStatus(String tableName, WorkflowStatus workflowStatus);
+	
+	boolean isFileProcessed(String fileId);
 
 }

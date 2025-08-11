@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import sg.edu.nus.iss.edgp.workflow.management.dto.FileStatus;
 import sg.edu.nus.iss.edgp.workflow.management.dto.WorkflowStatus;
 import sg.edu.nus.iss.edgp.workflow.management.service.IDynamicDetailService;
+import sg.edu.nus.iss.edgp.workflow.management.utility.DynamoConstants;
 import sg.edu.nus.iss.edgp.workflow.management.utility.FileMetricsConstants;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeAction;
@@ -24,9 +25,13 @@ import software.amazon.awssdk.services.dynamodb.model.DescribeTableResponse;
 import software.amazon.awssdk.services.dynamodb.model.KeySchemaElement;
 import software.amazon.awssdk.services.dynamodb.model.KeyType;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
+import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
+import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
+import software.amazon.awssdk.services.dynamodb.model.Select;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
 @RequiredArgsConstructor
@@ -251,5 +256,26 @@ public class DynamicDetailService implements IDynamicDetailService {
 
 		dynamoDbClient.updateItem(updateRequest);
 	}
+	
+	@Override
+	public boolean isFileProcessed(String fileId) {
+	    Map<String, AttributeValue> eav = Map.of(
+	        ":fid", AttributeValue.builder().s(fileId).build(),
+	        ":zero", AttributeValue.builder().n("0").build()
+	    );
+
+	    ScanRequest req = ScanRequest.builder()
+	        .tableName(DynamoConstants.WORK_FLOW_STATUS.trim())
+	        .filterExpression("file_id = :fid AND (attribute_not_exists(final_status) OR size(final_status) = :zero)")
+	        .expressionAttributeValues(eav)
+	        .projectionExpression("file_id")
+	        .build();
+
+	    for (ScanResponse page : dynamoDbClient.scanPaginator(req)) {
+	        if (page.count() > 0) return false;
+	    }
+	    return true;
+	}
+
 
 }
