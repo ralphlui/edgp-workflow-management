@@ -32,6 +32,7 @@ import software.amazon.awssdk.services.dynamodb.model.KeySchemaElement;
 import software.amazon.awssdk.services.dynamodb.model.KeyType;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
+import software.amazon.awssdk.services.dynamodb.model.ReturnValue;
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
 import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
@@ -286,43 +287,48 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 
 	@Override
 	public void updateWorkflowStatus(String tableName, WorkflowStatus workflowStatus) {
-
-		try {
-
-			Map<String, AttributeValue> key = new HashMap<>();
+	    try {
+	    	Map<String, AttributeValue> key = new HashMap<>();
 			key.put("id", AttributeValue.builder().s(workflowStatus.getId()).build());
 
-			Map<String, AttributeValueUpdate> updates = new HashMap<>();
-			if (workflowStatus.getRuleStatus() != null) {
-				updates.put("ruleStatus",
-						AttributeValueUpdate.builder()
-								.value(AttributeValue.builder().s(workflowStatus.getRuleStatus()).build())
-								.action(AttributeAction.PUT).build());
-			}
 
-			if (workflowStatus.getFinalStatus() != null) {
-				updates.put("finalStatus",
-						AttributeValueUpdate.builder()
-								.value(AttributeValue.builder().s(workflowStatus.getFinalStatus()).build())
-								.action(AttributeAction.PUT).build());
-			}
+	        StringBuilder set = new StringBuilder();
+	        Map<String, String> names = new HashMap<>();
+	        Map<String, AttributeValue> values = new HashMap<>();
+	        int n = 0;
 
-			if (workflowStatus.getMessage() != null) {
-				updates.put("message",
-						AttributeValueUpdate.builder()
-								.value(AttributeValue.builder().s(workflowStatus.getMessage()).build())
-								.action(AttributeAction.PUT).build());
-			}
+	        if (workflowStatus.getRuleStatus() != null) {
+	            if (n++ > 0) set.append(", ");
+	            names.put("#rs", "rule_status"); 
+	            values.put(":rs", AttributeValue.builder().s(workflowStatus.getRuleStatus()).build());
+	            set.append("#rs = :rs"); 
+	        }
 
-			UpdateItemRequest updateRequest = UpdateItemRequest.builder().tableName(tableName).key(key)
-					.attributeUpdates(updates).build();
+	        if (workflowStatus.getFinalStatus() != null) {
+	            if (n++ > 0) set.append(", ");
+	            names.put("#fs", "final_status");
+	            values.put(":fs", AttributeValue.builder().s(workflowStatus.getFinalStatus()).build());
+	            set.append("#fs = :fs"); 
+	        }
 
-			dynamoDbClient.updateItem(updateRequest);
+	        if (n == 0) return;
 
-		} catch (Exception ex) {
-			logger.error("An error occurred while updating workflow status.... {}", ex);
-			throw new DynamicDynamoServiceException("An error occurred while updating workflow status", ex);
-		}
+	        UpdateItemRequest req = UpdateItemRequest.builder()
+	            .tableName(tableName)
+	            .key(key)
+	            .updateExpression("SET " + set)
+	            .expressionAttributeNames(names)
+	            .expressionAttributeValues(values)
+	            .returnValues(ReturnValue.ALL_NEW)
+	            .build();
+
+	            dynamoDbClient.updateItem(req);
+	       
+
+	    } catch (Exception ex) {
+	        logger.error("Failed to upsert workflow status", ex);
+	        throw new DynamicDynamoServiceException("Error updating workflow status", ex);
+	    }
 	}
 
 	@Override

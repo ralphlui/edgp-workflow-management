@@ -27,5 +27,6 @@ public interface IDynamicDynamoService {
 	
 	 Map<String, Object> retrieveDataList(String tableName, String fileId, String status,
 				SearchRequest searchRequest);
+	
 
 }

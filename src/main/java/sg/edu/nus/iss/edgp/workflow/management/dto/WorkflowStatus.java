@@ -10,5 +10,4 @@ public class WorkflowStatus {
 	private String id;
 	private String ruleStatus;
 	private String finalStatus = "";
-	private String message = "";
 }
