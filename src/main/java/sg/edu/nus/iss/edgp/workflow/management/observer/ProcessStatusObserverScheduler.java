@@ -1,8 +1,5 @@
 package sg.edu.nus.iss.edgp.workflow.management.observer;
 
-import java.util.Map;
-import java.util.Optional;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -25,9 +22,8 @@ public class ProcessStatusObserverScheduler {
 		logger.info("Checking workflow status...");
 
 		try {
-			// 1) Get the current PROCESSING file
-
-			Optional<String> fileId = processStatusObserverService
+			    // 1) Get the current PROCESSING file
+			String fileId = processStatusObserverService
 					.fetchOldestIdByProcessStage(FileProcessStage.PROCESSING);
 
 			if (fileId.isEmpty()) {
@@ -35,8 +31,15 @@ public class ProcessStatusObserverScheduler {
 				return;
 
 			} else {
-				// check workflow status
+				// (2) check workflow status
+				
+				boolean isProcessed=processStatusObserverService.isFileProcessed(fileId);
+				if(isProcessed) {
+					
+					// (3) update file stage as complete
+					processStatusObserverService.updateFileStage(fileId, FileProcessStage.COMPLETE);
 
+				}
 			}
 		}
 

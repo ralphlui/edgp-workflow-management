@@ -1,7 +1,6 @@
 package sg.edu.nus.iss.edgp.workflow.management.service.impl;
 
 import java.util.Map;
-import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 
@@ -11,8 +10,12 @@ import sg.edu.nus.iss.edgp.workflow.management.service.IProcessStatusObserverSer
 import sg.edu.nus.iss.edgp.workflow.management.utility.DynamoConstants;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
+import software.amazon.awssdk.services.dynamodb.model.ReturnValue;
 import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
 import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
+import software.amazon.awssdk.services.dynamodb.model.Select;
+import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
 @RequiredArgsConstructor
 @Service
@@ -21,7 +24,7 @@ public class ProcessStatusObserverService implements IProcessStatusObserverServi
 	private final DynamoDbClient dynamoDbClient;
 	
 	@Override
-	public Optional<String> fetchOldestIdByProcessStage(FileProcessStage stage) {
+	public String fetchOldestIdByProcessStage(FileProcessStage stage) {
 	    ScanRequest req = ScanRequest.builder()
 	        .tableName(DynamoConstants.MASTER_DATA_HEADER_TABLE_NAME.trim())
 	        .filterExpression("#ps = :ps")
@@ -47,28 +50,37 @@ public class ProcessStatusObserverService implements IProcessStatusObserverServi
 	            }
 	        }
 	    }
-	    return Optional.ofNullable(fileId);
+	    return fileId;
 	}
 	
 	@Override
 	public boolean isFileProcessed(String fileId) {
-	    Map<String, AttributeValue> eav = Map.of(
-	        ":fid", AttributeValue.builder().s(fileId).build(),
-	        ":zero", AttributeValue.builder().n("0").build()
-	    );
-
-	    ScanRequest req = ScanRequest.builder()
+	    QueryRequest req = QueryRequest.builder()
 	        .tableName(DynamoConstants.WORK_FLOW_STATUS.trim())
-	        .filterExpression("file_id = :fid AND (attribute_not_exists(final_status) OR size(final_status) = :zero)")
-	        .expressionAttributeValues(eav)
-	        .projectionExpression("file_id")
+	        .keyConditionExpression("file_id = :fid")
+	        .filterExpression("attribute_not_exists(final_status)")
+	        .expressionAttributeValues(Map.of(":fid", AttributeValue.builder().s(fileId).build()))
+	        .select(Select.COUNT)
 	        .build();
 
-	    for (ScanResponse page : dynamoDbClient.scanPaginator(req)) {
-	        if (page.count() > 0) return false;
-	    }
-	    return true;
+	    return dynamoDbClient.query(req).count() == 0;
 	}
+	
+	@Override
+	public void updateFileStage(String fileId, FileProcessStage processStage) {
 
+		Map<String, AttributeValue> key = Map.of("id", AttributeValue.builder().s(fileId).build());
+
+		UpdateItemRequest req = UpdateItemRequest.builder()
+				.tableName(DynamoConstants.MASTER_DATA_HEADER_TABLE_NAME.trim()).key(key)
+				.updateExpression("SET #ps = :ps, updated_at = :now")
+				.expressionAttributeNames(Map.of("#ps", "process_stage"))
+				.expressionAttributeValues(Map.of(":ps", AttributeValue.builder().s(processStage.name()).build(),
+						 ":now",
+						AttributeValue.builder().s(java.time.Instant.now().toString()).build()))
+				.conditionExpression("attribute_exists(id)").returnValues(ReturnValue.UPDATED_NEW).build();
+
+		dynamoDbClient.updateItem(req);
+	}
 
 }
