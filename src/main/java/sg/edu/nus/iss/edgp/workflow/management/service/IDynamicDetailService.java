@@ -24,6 +24,5 @@ public interface IDynamicDetailService {
 
 	void updateWorkflowStatus(String tableName, WorkflowStatus workflowStatus);
 	
-	boolean isFileProcessed(String fileId);
 
 }

@@ -256,26 +256,6 @@ public class DynamicDetailService implements IDynamicDetailService {
 
 		dynamoDbClient.updateItem(updateRequest);
 	}
-	
-	@Override
-	public boolean isFileProcessed(String fileId) {
-	    Map<String, AttributeValue> eav = Map.of(
-	        ":fid", AttributeValue.builder().s(fileId).build(),
-	        ":zero", AttributeValue.builder().n("0").build()
-	    );
-
-	    ScanRequest req = ScanRequest.builder()
-	        .tableName(DynamoConstants.WORK_FLOW_STATUS.trim())
-	        .filterExpression("file_id = :fid AND (attribute_not_exists(final_status) OR size(final_status) = :zero)")
-	        .expressionAttributeValues(eav)
-	        .projectionExpression("file_id")
-	        .build();
-
-	    for (ScanResponse page : dynamoDbClient.scanPaginator(req)) {
-	        if (page.count() > 0) return false;
-	    }
-	    return true;
-	}
 
 
 }

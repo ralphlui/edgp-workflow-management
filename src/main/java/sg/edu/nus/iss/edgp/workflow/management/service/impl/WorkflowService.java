@@ -22,6 +22,7 @@ import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
 public class WorkflowService implements IWorkflowService {
 
 	private final DynamicDetailService dynamoService;
+	private final ProcessStatusObserverService  processStatusObserverService;
 
 	@Override
 	public void updateWorkflowStatus(Map<String, Object> data) {
@@ -145,7 +146,7 @@ public class WorkflowService implements IWorkflowService {
 
 	@Override
 	public boolean isFileProcessed(String fileId) {
-		return dynamoService.isFileProcessed(fileId);
+		return processStatusObserverService.isFileProcessed(fileId);
 	}
 	
 
