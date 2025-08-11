@@ -6,32 +6,28 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
-import sg.edu.nus.iss.edgp.workflow.management.dto.FileStatus;
 import sg.edu.nus.iss.edgp.workflow.management.dto.SearchRequest;
 import sg.edu.nus.iss.edgp.workflow.management.dto.WorkflowStatus;
 import sg.edu.nus.iss.edgp.workflow.management.exception.DynamicDynamoServiceException;
 import sg.edu.nus.iss.edgp.workflow.management.service.IDynamicDynamoService;
-import sg.edu.nus.iss.edgp.workflow.management.utility.FileMetricsConstants;
+import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
-import software.amazon.awssdk.services.dynamodb.model.AttributeAction;
 import software.amazon.awssdk.services.dynamodb.model.AttributeDefinition;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
-import software.amazon.awssdk.services.dynamodb.model.AttributeValueUpdate;
 import software.amazon.awssdk.services.dynamodb.model.BillingMode;
 import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest;
 import software.amazon.awssdk.services.dynamodb.model.DescribeTableRequest;
 import software.amazon.awssdk.services.dynamodb.model.DescribeTableResponse;
 import software.amazon.awssdk.services.dynamodb.model.KeySchemaElement;
 import software.amazon.awssdk.services.dynamodb.model.KeyType;
-import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
+import software.amazon.awssdk.services.dynamodb.model.ReturnValue;
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
 import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
@@ -86,181 +82,13 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 	}
 
 	@Override
-	public void insertWorkFlowStatusData(String tableName, Map<String, String> rawData) {
-		if (rawData == null || rawData.isEmpty()) {
-			throw new IllegalArgumentException("No data provided for insert.");
-		}
-		try {
-
-			Map<String, AttributeValue> item = new HashMap<>();
-			if (!rawData.containsKey("id")) {
-				item.put("id", AttributeValue.builder().s(UUID.randomUUID().toString()).build());
-			} else {
-				item.put("id", AttributeValue.builder().s(rawData.get("id")).build());
-			}
-
-			for (Map.Entry<String, String> entry : rawData.entrySet()) {
-				String column = entry.getKey();
-				String value = entry.getValue();
-
-				if (column == null || column.trim().isEmpty())
-					continue;
-
-				AttributeValue attrVal = convertToAttributeValue(value);
-				item.put(column, attrVal);
-			}
-
-			PutItemRequest request = PutItemRequest.builder().tableName(tableName).item(item).build();
-
-			dynamoDbClient.putItem(request);
-
-		} catch (Exception ex) {
-			logger.error("An error occurred while inserting workflow status data to db.... {}", ex);
-			throw new DynamicDynamoServiceException("Interrupted while inserting workflow status data to db", ex);
-		}
-
-	}
-
-	private AttributeValue convertToAttributeValue(String value) {
-		if (value == null || value.trim().isEmpty()) {
-			return AttributeValue.builder().nul(true).build();
-		}
-
-		String trimmed = value.trim();
-
-		try {
-			// Numeric detection
-			if (trimmed.matches("-?\\d+")) {
-				return AttributeValue.builder().n(trimmed).build(); // integer
-			} else if (trimmed.matches("-?\\d+\\.\\d+")) {
-				return AttributeValue.builder().n(trimmed).build(); // decimal
-			} else if (trimmed.equalsIgnoreCase("true") || trimmed.equalsIgnoreCase("false")) {
-				return AttributeValue.builder().bool(Boolean.parseBoolean(trimmed)).build();
-			} else {
-				return AttributeValue.builder().s(trimmed).build(); // default to string
-			}
-		} catch (Exception e) {
-			return AttributeValue.builder().s(trimmed).build(); // fallback
-		}
-	}
-
-	@Override
-	public Map<String, AttributeValue> getFileStatusDataByFileId(String tableName, String fileId) {
-
-		try {
-			if (fileId == null || fileId.isEmpty()) {
-				throw new DynamicDynamoServiceException("Fiele ID is empty while  retireving file status data by file id ");
-			}
-			
-			Map<String, AttributeValue> expressionValues = new HashMap<>();
-			expressionValues.put(":fileId", AttributeValue.builder().s(fileId).build());
-
-			ScanRequest scanRequest = ScanRequest.builder().tableName(tableName).filterExpression("fileId = :fileId")
-					.expressionAttributeValues(expressionValues).build();
-
-			List<Map<String, AttributeValue>> results = dynamoDbClient.scan(scanRequest).items();
-
-			if (results.isEmpty()) {
-				return null;
-			}
-
-			return results.get(0);
-
-		} catch (Exception ex) {
-			logger.error("An error occurred while retireving file status data by file id.... {}", ex);
-			throw new DynamicDynamoServiceException("An error occurred while retireving file status data by file id",
-					ex);
-		}
-
-	}
-
-	@Override
-	public void insertFileStatusData(String tableName, Map<String, String> rawData) {
-		if (rawData == null || rawData.isEmpty()) {
-			throw new IllegalArgumentException("No data provided for insert.");
-		}
-
-		try {
-			Map<String, AttributeValue> item = new HashMap<>();
-
-			if (!rawData.containsKey("id")) {
-				item.put("id", AttributeValue.builder().s(UUID.randomUUID().toString()).build());
-			} else {
-				item.put("id", AttributeValue.builder().s(rawData.get("id")).build());
-			}
-
-			for (Map.Entry<String, String> entry : rawData.entrySet()) {
-				String column = entry.getKey();
-				String value = entry.getValue();
-
-				if (column == null || column.trim().isEmpty())
-					continue;
-
-				AttributeValue attrVal = convertToAttributeValue(value);
-				item.put(column, attrVal);
-			}
-
-			PutItemRequest request = PutItemRequest.builder().tableName(tableName).item(item).build();
-
-			dynamoDbClient.putItem(request);
-
-		} catch (Exception ex) {
-			logger.error("An error occurred while inserting file status data to db.... {}", ex);
-			throw new DynamicDynamoServiceException("An error occurred while inserting file status data to db", ex);
-		}
-	}
-
-	@Override
-	public void updateFileStatus(String tableName, FileStatus fileStatus) {
-		Map<String, AttributeValue> key = new HashMap<>();
-		try {
-			key.put("id", AttributeValue.builder().s(fileStatus.getId()).build());
-
-			Map<String, AttributeValueUpdate> updates = new HashMap<>();
-			updates.put(FileMetricsConstants.SUCCESS_COUNT,
-					AttributeValueUpdate.builder()
-							.value(AttributeValue.builder().s(fileStatus.getSuccessCount()).build())
-							.action(AttributeAction.PUT).build());
-
-			updates.put(FileMetricsConstants.REJECTED_COUNT,
-					AttributeValueUpdate.builder()
-							.value(AttributeValue.builder().s(fileStatus.getRejectedCount()).build())
-							.action(AttributeAction.PUT).build());
-
-			updates.put(FileMetricsConstants.FAILED_COUNT,
-					AttributeValueUpdate.builder()
-							.value(AttributeValue.builder().s(fileStatus.getFailedCount()).build())
-							.action(AttributeAction.PUT).build());
-
-			updates.put(FileMetricsConstants.QUARANTINED_COUNT,
-					AttributeValueUpdate.builder()
-							.value(AttributeValue.builder().s(fileStatus.getQuarantinedCount()).build())
-							.action(AttributeAction.PUT).build());
-
-			updates.put(FileMetricsConstants.PROCESSED_COUNT,
-					AttributeValueUpdate.builder()
-							.value(AttributeValue.builder().s(fileStatus.getProcessedCount()).build())
-							.action(AttributeAction.PUT).build());
-
-			UpdateItemRequest updateRequest = UpdateItemRequest.builder().tableName(tableName).key(key)
-					.attributeUpdates(updates).build();
-
-			dynamoDbClient.updateItem(updateRequest);
-
-		} catch (Exception ex) {
-			logger.error("An error occurred while updating file status.... {}", ex);
-			throw new DynamicDynamoServiceException("An error occurred while updating file status", ex);
-		}
-
-	}
-
-	@Override
 	public Map<String, AttributeValue> getDataByWorkflowStatusId(String tableName, String id) {
 
 		try {
-			
+
 			if (id == null || id.isEmpty()) {
-				throw new DynamicDynamoServiceException("Workflow status id is empty while  retireving workflow status data.");
+				throw new DynamicDynamoServiceException(
+						"Workflow status id is empty while  retireving workflow status data.");
 			}
 
 			Map<String, AttributeValue> expressionValues = new HashMap<>();
@@ -286,61 +114,120 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 
 	@Override
 	public void updateWorkflowStatus(String tableName, WorkflowStatus workflowStatus) {
-
 		try {
-
 			Map<String, AttributeValue> key = new HashMap<>();
 			key.put("id", AttributeValue.builder().s(workflowStatus.getId()).build());
 
-			Map<String, AttributeValueUpdate> updates = new HashMap<>();
+			StringBuilder set = new StringBuilder();
+			Map<String, String> names = new HashMap<>();
+			Map<String, AttributeValue> values = new HashMap<>();
+			int n = 0;
+
 			if (workflowStatus.getRuleStatus() != null) {
-				updates.put("ruleStatus",
-						AttributeValueUpdate.builder()
-								.value(AttributeValue.builder().s(workflowStatus.getRuleStatus()).build())
-								.action(AttributeAction.PUT).build());
+				if (n++ > 0)
+					set.append(", ");
+				names.put("#rs", "rule_status");
+				values.put(":rs", AttributeValue.builder().s(workflowStatus.getRuleStatus()).build());
+				set.append("#rs = :rs");
 			}
 
 			if (workflowStatus.getFinalStatus() != null) {
-				updates.put("finalStatus",
-						AttributeValueUpdate.builder()
-								.value(AttributeValue.builder().s(workflowStatus.getFinalStatus()).build())
-								.action(AttributeAction.PUT).build());
+				if (n++ > 0)
+					set.append(", ");
+				names.put("#fs", "final_status");
+				values.put(":fs", AttributeValue.builder().s(workflowStatus.getFinalStatus()).build());
+				set.append("#fs = :fs");
 			}
 
-			if (workflowStatus.getMessage() != null) {
-				updates.put("message",
-						AttributeValueUpdate.builder()
-								.value(AttributeValue.builder().s(workflowStatus.getMessage()).build())
-								.action(AttributeAction.PUT).build());
+			if (workflowStatus.getFailedValidations() != null) {
+				if (n++ > 0)
+					set.append(", ");
+				names.put("#fv", "failed_validations");
+
+				List<AttributeValue> fvList = new ArrayList<>();
+				for (Map<String, Object> item : workflowStatus.getFailedValidations()) {
+					fvList.add(AttributeValue.builder().m(toAvMap(item)).build());
+				}
+				values.put(":fv", AttributeValue.builder().l(fvList).build());
+				values.put(":empty", AttributeValue.builder().l(Collections.emptyList()).build());
+
+				// Always create list if missing, then append
+				set.append("#fv = list_append(if_not_exists(#fv, :empty), :fv)");
 			}
+			if (n == 0)
+				return;
 
-			UpdateItemRequest updateRequest = UpdateItemRequest.builder().tableName(tableName).key(key)
-					.attributeUpdates(updates).build();
+			UpdateItemRequest req = UpdateItemRequest.builder().tableName(tableName).key(key)
+					.updateExpression("SET " + set).expressionAttributeNames(names).expressionAttributeValues(values)
+					.returnValues(ReturnValue.ALL_NEW).build();
 
-			dynamoDbClient.updateItem(updateRequest);
+			dynamoDbClient.updateItem(req);
 
 		} catch (Exception ex) {
-			logger.error("An error occurred while updating workflow status.... {}", ex);
-			throw new DynamicDynamoServiceException("An error occurred while updating workflow status", ex);
+			logger.error("Failed to update workflow status", ex);
+			throw new DynamicDynamoServiceException("Error updating workflow status", ex);
 		}
 	}
 
+	private Map<String, AttributeValue> toAvMap(Map<String, Object> map) {
+		Map<String, AttributeValue> out = new HashMap<>();
+		for (Map.Entry<String, Object> e : map.entrySet()) {
+			Object v = e.getValue();
+			if (v == null)
+				continue; // DynamoDB doesn't store nulls
+			out.put(e.getKey(), toAv(v));
+		}
+		return out;
+	}
+
+	private AttributeValue toAv(Object v) {
+		if (v instanceof String s)
+			return AttributeValue.builder().s(s).build();
+		if (v instanceof Number n)
+			return AttributeValue.builder().n(n.toString()).build();
+		if (v instanceof Boolean b)
+			return AttributeValue.builder().bool(b).build();
+		if (v instanceof byte[] b)
+			return AttributeValue.builder().b(SdkBytes.fromByteArray(b)).build();
+		if (v instanceof List<?> list) {
+			List<AttributeValue> l = new ArrayList<>();
+			for (Object o : list)
+				l.add(toAv(o));
+			return AttributeValue.builder().l(l).build();
+		}
+		if (v instanceof Map<?, ?> m) {
+			Map<String, AttributeValue> mm = new HashMap<>();
+			for (Map.Entry<?, ?> me : m.entrySet()) {
+				Object key = me.getKey();
+				Object val = me.getValue();
+				if (key != null && val != null)
+					mm.put(key.toString(), toAv(val));
+			}
+			return AttributeValue.builder().m(mm).build();
+		}
+		// Fallback: store as string
+		return AttributeValue.builder().s(v.toString()).build();
+	}
+
 	@Override
-	public Map<String, Object> retrieveDataList(String tableName, String fileId, String status,
-			SearchRequest searchRequest) {
+	public Map<String, Object> retrieveDataList(String tableName, String fileId,
+			SearchRequest searchRequest, String userOrgId) {
 
 		try {
 			Map<String, AttributeValue> expressionValues = new HashMap<>();
 			List<String> filterConditions = new ArrayList<>();
+			
+			filterConditions.add("organization_id = :organization_id");
+			expressionValues.put(":organization_id", AttributeValue.builder().s(userOrgId).build());
 
 			if (fileId != null && !fileId.isEmpty()) {
-				filterConditions.add("fileId = :fileId");
-				expressionValues.put(":fileId", AttributeValue.builder().s(fileId).build());
+				filterConditions.add("file_id = :file_id");
+				expressionValues.put(":file_id", AttributeValue.builder().s(fileId).build());
 			}
 
-			if (status != null && !status.isEmpty()) {
-				filterConditions.add("finalStatus = :finalStatus");
-				expressionValues.put(":finalStatus", AttributeValue.builder().s(status).build());
+			if (searchRequest.getStatus() != null && !searchRequest.getStatus().isEmpty()) {
+				filterConditions.add("final_status = :final_status");
+				expressionValues.put(":final_status", AttributeValue.builder().s(searchRequest.getStatus()).build());
 			}
 
 			Map<String, AttributeValue> lastEvaluatedKey = null;
@@ -366,7 +253,6 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 				lastEvaluatedKey = response.lastEvaluatedKey();
 
 			} while (lastEvaluatedKey != null && !lastEvaluatedKey.isEmpty());
-
 
 			allFilteredItems.sort(Comparator.comparing(item -> item.get("id").s()));
 

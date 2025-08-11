@@ -5,6 +5,6 @@ import java.util.Map;
 public interface IDynamicSQLService {
 
 	void buildCreateTableSQL(Map<String, Object> data, String tableName);
-	
+
 	void insertData(String tableName, Map<String, Object> data);
 }

@@ -19,9 +19,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import sg.edu.nus.iss.edgp.workflow.management.WorkflowValidationStrategy;
 import sg.edu.nus.iss.edgp.workflow.management.dto.APIResponse;
 import sg.edu.nus.iss.edgp.workflow.management.dto.AuditDTO;
 import sg.edu.nus.iss.edgp.workflow.management.dto.SearchRequest;
+import sg.edu.nus.iss.edgp.workflow.management.dto.ValidationResult;
 import sg.edu.nus.iss.edgp.workflow.management.enums.HTTPVerb;
 import sg.edu.nus.iss.edgp.workflow.management.exception.WorkflowServiceException;
 import sg.edu.nus.iss.edgp.workflow.management.jwt.JWTService;
@@ -38,6 +40,7 @@ public class WorkflowController {
 	private final WorkflowService workflowService;
 	private final AuditService auditService;
 	private final JWTService jwtService;
+	private final WorkflowValidationStrategy workflowValidationStrategy;
 	private String genericErrorMessage = "An error occurred while processing your request. Please try again later.";
 
 	
@@ -62,7 +65,17 @@ public class WorkflowController {
 
 		try {
 			
-			List<Map<String, Object>> resultMap = workflowService.retrieveDataList(fileId, searchRequest.getStatus(), searchRequest);
+			String userOrgId = jwtService.extractOrgIdFromToken(jwtToken);
+			ValidationResult validationResult = workflowValidationStrategy.isUserOrganizationActive(userOrgId, authorizationHeader);
+			
+			
+			if (!validationResult.isValid()) {
+				message = validationResult.getMessage();
+				auditService.logAudit(auditDTO, validationResult.getStatus().value(), message, authorizationHeader);
+				return ResponseEntity.status(validationResult.getStatus()).body(APIResponse.error(message));
+			}
+			
+			List<Map<String, Object>> resultMap = workflowService.retrieveDataList(fileId, searchRequest, userOrgId);
 			logger.info("all data list size {}", resultMap.size());
 
 			
