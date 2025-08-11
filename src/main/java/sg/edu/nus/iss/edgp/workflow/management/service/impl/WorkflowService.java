@@ -131,7 +131,7 @@ public class WorkflowService implements IWorkflowService {
 					.getDataByWorkflowStatusId(DynamoConstants.MASTER_DATA_TASK_TRACKER_TABLE_NAME, workflowStatusId);
 			
 			if (workflowStatusData == null || workflowStatusData.isEmpty()) {
-				throw new WorkflowServiceException("No matching workflow data found");
+				throw new WorkflowServiceException("No matching data record found");
 			}
 
 			logger.info("retrieved data record by workflow id");
