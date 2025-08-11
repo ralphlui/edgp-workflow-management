@@ -49,12 +49,13 @@ public class WorkflowService implements IWorkflowService {
 			Map<String, AttributeValue> workflowStatusData = dynamoService
 					.getDataByWorkflowStatusId(DynamoConstants.MASTER_DATA_TASK_TRACKER_TABLE_NAME, workflowStatusId);
 
-			if (workflowStatusData == null || workflowStatusData.isEmpty()) {				
-				
-				throw new WorkflowServiceException("Workflow status update aborted: existing workflow status data not found.");
+			if (workflowStatusData == null || workflowStatusData.isEmpty()) {
+
+				throw new WorkflowServiceException(
+						"Workflow status update aborted: existing workflow status data not found.");
 
 			} else {
-				
+
 				WorkflowStatus workflowStatus = new WorkflowStatus();
 				workflowStatus.setFinalStatus(status);
 				workflowStatus.setRuleStatus(status);
@@ -62,7 +63,7 @@ public class WorkflowService implements IWorkflowService {
 				dynamoService.updateWorkflowStatus(masterDataTaskTable, workflowStatus);
 				String domainTableName = (String) rawData.get("domain_name");
 				insetCleanMasterData(status, domainTableName, workflowStatusData);
-				
+
 			}
 		} catch (Exception ex) {
 			logger.error("An error occurred while updating workflow status.... {}", ex);
@@ -71,19 +72,19 @@ public class WorkflowService implements IWorkflowService {
 
 	}
 
-	
-	private void insetCleanMasterData(String status, String domainTableName, Map<String, AttributeValue> workflowStatusData) {
+	private void insetCleanMasterData(String status, String domainTableName,
+			Map<String, AttributeValue> workflowStatusData) {
 		if (Status.SUCCESS.toString().equals(status.toUpperCase()) && !domainTableName.isEmpty()) {
 			Map<String, Object> workflowStatusFields = dynamoItemToJavaMap(workflowStatusData);
-			
-			Optional.ofNullable(workflowStatusFields.remove("id"))
-	        .ifPresent(v -> workflowStatusFields.put("workflowStatusId", v));
 
-	        workflowStatusFields.remove("created_date");
-	        workflowStatusFields.remove("final_status");
-	        workflowStatusFields.remove("rule_status");
+			Optional.ofNullable(workflowStatusFields.remove("id"))
+					.ifPresent(v -> workflowStatusFields.put("workflowStatusId", v));
+
+			workflowStatusFields.remove("created_date");
+			workflowStatusFields.remove("final_status");
+			workflowStatusFields.remove("rule_status");
 			dynamicSQLService.buildCreateTableSQL(workflowStatusFields, domainTableName);
-			
+
 		}
 	}
 
@@ -159,44 +160,52 @@ public class WorkflowService implements IWorkflowService {
 		}
 
 	}
-	
+
 	private Map<String, Object> dynamoItemToJavaMap(Map<String, AttributeValue> itemAttributes) {
-	    Map<String, Object> plainItem = new HashMap<>();
+		Map<String, Object> plainItem = new HashMap<>();
 
-	    for (Map.Entry<String, AttributeValue> attrEntry : itemAttributes.entrySet()) {
-	        String attrName = attrEntry.getKey();
-	        AttributeValue attrValue = attrEntry.getValue();
+		for (Map.Entry<String, AttributeValue> attrEntry : itemAttributes.entrySet()) {
+			String attrName = attrEntry.getKey();
+			AttributeValue attrValue = attrEntry.getValue();
 
-	        if (attrValue.s() != null) {
-	            plainItem.put(attrName, attrValue.s());
-	        } else if (attrValue.n() != null) {
-	            plainItem.put(attrName, attrValue.n());
-	        } else if (attrValue.bool() != null) {
-	            plainItem.put(attrName, attrValue.bool());
-	        } else if (attrValue.hasL()) {
-	            List<Object> listValues = new ArrayList<>();
-	            for (AttributeValue element : attrValue.l()) {
-	                if (element.s() != null) listValues.add(element.s());
-	                else if (element.n() != null) listValues.add(element.n());
-	                else if (element.bool() != null) listValues.add(element.bool());
-	                else listValues.add(element.toString()); // fallback
-	            }
-	            plainItem.put(attrName, listValues);
-	        } else if (attrValue.hasM()) {
-	            Map<String, Object> mapValue = new HashMap<>();
-	            for (Map.Entry<String, AttributeValue> mapEntry : attrValue.m().entrySet()) {
-	                AttributeValue fieldValue = mapEntry.getValue();
-	                if (fieldValue.s() != null) mapValue.put(mapEntry.getKey(), fieldValue.s());
-	                else if (fieldValue.n() != null) mapValue.put(mapEntry.getKey(), fieldValue.n());
-	                else if (fieldValue.bool() != null) mapValue.put(mapEntry.getKey(), fieldValue.bool());
-	                else mapValue.put(mapEntry.getKey(), fieldValue.toString()); // fallback
-	            }
-	            plainItem.put(attrName, mapValue);
-	        } else {
-	            plainItem.put(attrName, attrValue.toString()); // fallback for unknown types
-	        }
-	    }
-	    return plainItem;
+			if (attrValue.s() != null) {
+				plainItem.put(attrName, attrValue.s());
+			} else if (attrValue.n() != null) {
+				plainItem.put(attrName, attrValue.n());
+			} else if (attrValue.bool() != null) {
+				plainItem.put(attrName, attrValue.bool());
+			} else if (attrValue.hasL()) {
+				List<Object> listValues = new ArrayList<>();
+				for (AttributeValue element : attrValue.l()) {
+					if (element.s() != null)
+						listValues.add(element.s());
+					else if (element.n() != null)
+						listValues.add(element.n());
+					else if (element.bool() != null)
+						listValues.add(element.bool());
+					else
+						listValues.add(element.toString()); // fallback
+				}
+				plainItem.put(attrName, listValues);
+			} else if (attrValue.hasM()) {
+				Map<String, Object> mapValue = new HashMap<>();
+				for (Map.Entry<String, AttributeValue> mapEntry : attrValue.m().entrySet()) {
+					AttributeValue fieldValue = mapEntry.getValue();
+					if (fieldValue.s() != null)
+						mapValue.put(mapEntry.getKey(), fieldValue.s());
+					else if (fieldValue.n() != null)
+						mapValue.put(mapEntry.getKey(), fieldValue.n());
+					else if (fieldValue.bool() != null)
+						mapValue.put(mapEntry.getKey(), fieldValue.bool());
+					else
+						mapValue.put(mapEntry.getKey(), fieldValue.toString()); // fallback
+				}
+				plainItem.put(attrName, mapValue);
+			} else {
+				plainItem.put(attrName, attrValue.toString()); // fallback for unknown types
+			}
+		}
+		return plainItem;
 	}
 
 }
