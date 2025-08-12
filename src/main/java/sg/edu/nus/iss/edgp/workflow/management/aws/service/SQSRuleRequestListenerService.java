@@ -22,7 +22,7 @@ public class SQSRuleRequestListenerService {
 	private final SqsAsyncClient sqsAsyncClient;
 	private final ObjectMapper objectMapper;
 
-	@Value("${aws.sqs.queue.rule.request.url}")
+	@Value("${aws.sqs.queue.workflow.rule.request.ur}")
 	private String ruleRequestQueueUrl;
 
 	public void forwardToRulesRequestQueue(Map<String, Object> payload) {

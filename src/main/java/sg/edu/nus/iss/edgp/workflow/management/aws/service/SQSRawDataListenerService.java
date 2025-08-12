@@ -30,8 +30,6 @@ public class SQSRawDataListenerService {
                     message, new TypeReference<Map<String, Object>>() {}
             );
 
-            logger.info("Parsed Raw Data: {}", payload);
-
             // Validate and forward to rules request queue
             requestListenerService.forwardToRulesRequestQueue(payload);
 

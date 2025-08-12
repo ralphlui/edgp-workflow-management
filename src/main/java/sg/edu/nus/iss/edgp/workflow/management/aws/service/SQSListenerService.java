@@ -22,7 +22,7 @@ public class SQSListenerService {
 	private final WorkflowService workflowService;
 	private static final Logger logger = LoggerFactory.getLogger(SQSListenerService.class);
 
-	@SqsListener(value = "${aws.sqs.queue.rule.response.url}", factory = "workflowSqsFactory")
+	@SqsListener(value = "${aws.sqs.queue.workflow.rule.response.url}", factory = "workflowSqsFactory")
 	public void handleRuleServiceSqsMessage(String message) {
 		try {
 			logger.info("Received Rule Response Message from SQS");
