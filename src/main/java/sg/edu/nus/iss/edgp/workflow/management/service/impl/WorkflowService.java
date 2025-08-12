@@ -145,8 +145,8 @@ public class WorkflowService implements IWorkflowService {
 	}
 
 	@Override
-	public boolean isFileProcessed(String fileId) {
-		return processStatusObserverService.isFileProcessed(fileId);
+	public boolean isAllDataProcessed(String fileId) {
+		return processStatusObserverService.isAllDataProcessed(fileId);
 	}
 	
 

@@ -6,5 +6,5 @@ public interface IWorkflowService {
 
 	void updateWorkflowStatus(Map<String, Object> data);
 	
-	boolean isFileProcessed(String fileId);
+	boolean isAllDataProcessed(String fileId);
 }

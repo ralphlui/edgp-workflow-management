@@ -5,6 +5,7 @@ import sg.edu.nus.iss.edgp.workflow.management.enums.FileProcessStage;
 public interface IProcessStatusObserverService {
 	
     String fetchOldestIdByProcessStage(FileProcessStage stage);
-	boolean isFileProcessed(String fileId);
-	void updateFileStage(String fileId, FileProcessStage processStage);
+	boolean isAllDataProcessed(String fileId);
+	boolean isAllTrueForFile(String fileId);
+	void updateFileStageAndStatus(String fileId, FileProcessStage stage, boolean status);
 }
