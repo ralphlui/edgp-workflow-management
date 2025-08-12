@@ -30,7 +30,6 @@ public class SQSRawDataListenerService {
                     message, new TypeReference<Map<String, Object>>() {}
             );
 
-            // Validate and forward to rules request queue
             requestListenerService.forwardToRulesRequestQueue(payload);
 
         } catch (Exception e) {

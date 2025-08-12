@@ -15,7 +15,7 @@ import org.springframework.stereotype.Service;
 public class OrganizationAPICall {
 
 	
-	@Value("${org.api.url}")
+	@Value("${organization.api.url}")
 	private String orgURL;
 
 	private static final Logger logger = LoggerFactory.getLogger(AdminAPICall.class);

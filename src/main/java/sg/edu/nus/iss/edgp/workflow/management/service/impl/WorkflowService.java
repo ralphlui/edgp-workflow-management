@@ -18,14 +18,13 @@ import sg.edu.nus.iss.edgp.workflow.management.service.IWorkflowService;
 import sg.edu.nus.iss.edgp.workflow.management.utility.DynamoConstants;
 import sg.edu.nus.iss.edgp.workflow.management.utility.Status;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
-import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
 
 @RequiredArgsConstructor
 @Service
 public class WorkflowService implements IWorkflowService {
 
 
-	private final DynamicDetailService dynamoService;
+	private final DynamicDynamoService dynamoService;
 	private final ProcessStatusObserverService  processStatusObserverService;
 	private final DynamicSQLService dynamicSQLService;
 	private static final Logger logger = LoggerFactory.getLogger(WorkflowService.class);

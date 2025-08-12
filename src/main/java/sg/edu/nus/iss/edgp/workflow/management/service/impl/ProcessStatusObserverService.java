@@ -56,7 +56,7 @@ public class ProcessStatusObserverService implements IProcessStatusObserverServi
 	@Override
 	public boolean isAllDataProcessed(String fileId) {
 
-		ScanRequest scanRequest = ScanRequest.builder().tableName(DynamoConstants.WORK_FLOW_STATUS.trim()).filterExpression("file_id = :fid")
+		ScanRequest scanRequest = ScanRequest.builder().tableName(DynamoConstants.MASTER_DATA_TASK_TRACKER_TABLE_NAME.trim()).filterExpression("file_id = :fid")
 				.expressionAttributeValues(Map.of(":fid", AttributeValue.builder().s(fileId).build())).build();
 
 		List<Map<String, AttributeValue>> results = dynamoDbClient.scan(scanRequest).items();
@@ -71,7 +71,7 @@ public class ProcessStatusObserverService implements IProcessStatusObserverServi
 
 	@Override
 	public boolean isAllTrueForFile(String fileId) {
-		ScanRequest req = ScanRequest.builder().tableName(DynamoConstants.WORK_FLOW_STATUS.trim())
+		ScanRequest req = ScanRequest.builder().tableName(DynamoConstants.MASTER_DATA_TASK_TRACKER_TABLE_NAME.trim())
 				.filterExpression("#fid = :fid AND #fs = :false")
 				.expressionAttributeNames(Map.of("#fid", "file_id", "#fs", "final_status"))
 				.expressionAttributeValues(Map.of(":fid", AttributeValue.builder().s(fileId).build(), ":false",
