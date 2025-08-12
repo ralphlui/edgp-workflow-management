@@ -1,19 +1,22 @@
 package sg.edu.nus.iss.edgp.workflow.management.service.impl;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.UUID;
+import java.util.Optional;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
-import sg.edu.nus.iss.edgp.workflow.management.dto.FileStatus;
+import sg.edu.nus.iss.edgp.workflow.management.dto.SearchRequest;
 import sg.edu.nus.iss.edgp.workflow.management.dto.WorkflowStatus;
+import sg.edu.nus.iss.edgp.workflow.management.exception.WorkflowServiceException;
 import sg.edu.nus.iss.edgp.workflow.management.service.IWorkflowService;
 import sg.edu.nus.iss.edgp.workflow.management.utility.DynamoConstants;
-import sg.edu.nus.iss.edgp.workflow.management.utility.FileMetricsConstants;
+import sg.edu.nus.iss.edgp.workflow.management.utility.Status;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
 
@@ -21,133 +24,186 @@ import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
 @Service
 public class WorkflowService implements IWorkflowService {
 
+
 	private final DynamicDetailService dynamoService;
 	private final ProcessStatusObserverService  processStatusObserverService;
+	private final DynamicSQLService dynamicSQLService;
+	private static final Logger logger = LoggerFactory.getLogger(WorkflowService.class);
+
+	@SuppressWarnings("unchecked")
+	@Override
+	public void updateWorkflowStatus(Map<String, Object> rawData) {
+
+		try {
+			String status = (String) rawData.get("status");
+			Map<String, Object> data = (Map<String, Object>) rawData.get("data");
+			List<Map<String, Object>> failedValidations = (List<Map<String, Object>>) rawData.get("failed_validations");
+			String workflowStatusId = "";
+
+			if (data != null) {
+				workflowStatusId = (String) data.get("id");
+			}
+
+			// workflow status table
+			String masterDataTaskTable = DynamoConstants.MASTER_DATA_TASK_TRACKER_TABLE_NAME;
+			if (!dynamoService.tableExists(masterDataTaskTable)) {
+				dynamoService.createTable(masterDataTaskTable);
+			}
+
+			Map<String, AttributeValue> workflowStatusData = dynamoService
+					.getDataByWorkflowStatusId(DynamoConstants.MASTER_DATA_TASK_TRACKER_TABLE_NAME, workflowStatusId);
+
+			if (workflowStatusData == null || workflowStatusData.isEmpty()) {
+
+				throw new WorkflowServiceException(
+						"Workflow status update aborted: existing workflow status data not found.");
+
+			} else {
+				WorkflowStatus workflowStatus = new WorkflowStatus();
+				Optional.ofNullable(status).filter(s -> !s.isBlank()).ifPresent(s -> {
+					workflowStatus.setFinalStatus(s);
+					workflowStatus.setRuleStatus(s);
+				});
+
+				Optional.ofNullable(failedValidations).filter(list -> !list.isEmpty())
+						.ifPresent(list -> workflowStatus.setFailedValidations(List.copyOf(list)));
+
+				workflowStatus.setId(workflowStatusId);
+				dynamoService.updateWorkflowStatus(masterDataTaskTable, workflowStatus);
+				String domainTableName = (String) rawData.get("domain_name");
+				insetCleanMasterData(status, domainTableName, workflowStatusData);
+
+			}
+		} catch (Exception ex) {
+			logger.error("An error occurred while updating workflow status.... {}", ex);
+			throw new WorkflowServiceException("An error occurred while updating workflow status", ex);
+		}
+
+	}
+
+	private void insetCleanMasterData(String status, String domainTableName,
+			Map<String, AttributeValue> workflowStatusData) {
+		if (status != null && Status.SUCCESS.toString().equals(status.toUpperCase()) && !domainTableName.isEmpty()) {
+			Map<String, Object> workflowStatusFields = dynamoItemToJavaMap(workflowStatusData);
+
+			Optional.ofNullable(workflowStatusFields.remove("id"))
+					.ifPresent(v -> workflowStatusFields.put("workflowStatusId", v));
+
+			workflowStatusFields.remove("created_date");
+			workflowStatusFields.remove("final_status");
+			workflowStatusFields.remove("rule_status");
+			dynamicSQLService.buildCreateTableSQL(workflowStatusFields, domainTableName);
+
+		}
+	}
+
 
 	@Override
-	public void updateWorkflowStatus(Map<String, Object> data) {
+	public List<Map<String, Object>> retrieveDataList(String fileId, SearchRequest searchRequest, String userOrgId) {
 
-		String status = (String) data.get("status");
-		String workflowStatusId = (String) data.get("id");
-		String fileId = (String) data.get("fileId");
-		String message = (String) data.get("message");
-		String totalRowsCount = (String) data.get("totalRowsCount");
-
-		updateFileStatus(status, fileId, totalRowsCount);
-
-		// workflow status table
-		String workflowStatusTable = DynamoConstants.MASTER_DATA_TABLE_NAME;
-		if (!dynamoService.tableExists(workflowStatusTable)) {
-			dynamoService.createTable(workflowStatusTable);
-		}
-
-		Map<String, AttributeValue> workflowStatusData = dynamoService
-				.getDataByWorkflowStatusId(DynamoConstants.MASTER_DATA_TABLE_NAME, workflowStatusId);
-
-		if (workflowStatusData == null || workflowStatusData.isEmpty()) {
-
-			DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-			Map<String, String> workflosStatus = new HashMap<String, String>();
-			String uploadedDate = LocalDateTime.now().format(formatter);
-			workflosStatus.put("id", UUID.randomUUID().toString());
-			workflosStatus.put("workflowStatusId", workflowStatusId);
-			workflosStatus.put("fileId", fileId);
-			workflosStatus.put("ruleStatus", status);
-			workflosStatus.put("status", status);
-			workflosStatus.put("message", message);
-			workflosStatus.put("uploadedDate", uploadedDate);
-
-			dynamoService.insertWorkFlowStatusData(workflowStatusTable, workflosStatus);
-
-		} else {
-
-			WorkflowStatus workflowStatus = new WorkflowStatus();
-			workflowStatus.setFinalStatus(status);
-			workflowStatus.setRuleStatus(status);
-			workflowStatus.setMessage(message);
-			workflowStatus.setId(workflowStatusId);
-			dynamoService.updateWorkflowStatus(workflowStatusTable, workflowStatus);
-		}
-
-	}
-
-	private void updateFileStatus(String status, String fileId, String totalRowsCount) {
-
-		String fileStatusTable = DynamoConstants.FILE_STATUS;
-		if (!dynamoService.tableExists(fileStatusTable)) {
-			dynamoService.createTable(fileStatusTable);
-		}
-
-		Map<String, AttributeValue> fileStatusData = dynamoService
-				.getFileStatusDataByFileId(DynamoConstants.FILE_STATUS, fileId);
-		if (fileStatusData == null || fileStatusData.isEmpty()) {
-			Map<String, String> fileStatus = new HashMap<String, String>();
-			fileStatus.put("id", UUID.randomUUID().toString());
-			fileStatus.put("fileId", fileId);
-			fileStatus.put("totalRowsCount", totalRowsCount);
-			fileStatus.put(FileMetricsConstants.PROCESSED_COUNT, "1");
-			fileStatus.put(FileMetricsConstants.SUCCESS_COUNT, "0");
-			fileStatus.put(FileMetricsConstants.REJECTED_COUNT, "0");
-			fileStatus.put(FileMetricsConstants.FAILED_COUNT, "0");
-			fileStatus.put(FileMetricsConstants.QUARANTINED_COUNT, "0");
-
-			switch (status) {
-			case "S" -> fileStatus.put(FileMetricsConstants.SUCCESS_COUNT, "1");
-			case "R" -> fileStatus.put(FileMetricsConstants.REJECTED_COUNT, "1");
-			case "F" -> fileStatus.put(FileMetricsConstants.FAILED_COUNT, "1");
-			case "Q" -> fileStatus.put(FileMetricsConstants.QUARANTINED_COUNT, "1");
-			}
-
-			dynamoService.insertFileStatusData(fileStatusTable, fileStatus);
-		} else {
-
-			int successCount = safeParseInt(fileStatusData.get(FileMetricsConstants.SUCCESS_COUNT), 0);
-			int rejectedCount = safeParseInt(fileStatusData.get(FileMetricsConstants.REJECTED_COUNT), 0);
-			int failedCount = safeParseInt(fileStatusData.get(FileMetricsConstants.FAILED_COUNT), 0);
-			int quarantineCount = safeParseInt(fileStatusData.get(FileMetricsConstants.QUARANTINED_COUNT), 0);
-			int processedCount = safeParseInt(fileStatusData.get(FileMetricsConstants.PROCESSED_COUNT), 0);
-
-			FileStatus fileStatus = new FileStatus();
-			fileStatus.setFileId(fileId);
-			fileStatus.setId(fileStatusData.get("id").s());
-			processedCount += 1;
-			fileStatus.setProcessedCount(String.valueOf(processedCount));
-
-			switch (status) {
-			case "S" -> successCount++;
-			case "R" -> rejectedCount++;
-			case "F" -> failedCount++;
-			case "Q" -> quarantineCount++;
-			}
-
-			fileStatus.setSuccessCount(String.valueOf(successCount));
-			fileStatus.setRejectedCount(String.valueOf(rejectedCount));
-			fileStatus.setFailedCount(String.valueOf(failedCount));
-			fileStatus.setQuarantinedCount(String.valueOf(quarantineCount));
-
-			dynamoService.updateFileStatus(fileStatusTable, fileStatus);
-
-		}
-
-	}
-
-	private static int safeParseInt(AttributeValue attr, int defaultValue) {
-		if (attr == null)
-			return defaultValue;
-		String value = attr.n() != null ? attr.n() : attr.s();
-		if (value == null || value.isEmpty())
-			return defaultValue;
 		try {
-			return Integer.parseInt(value);
-		} catch (NumberFormatException e) {
-			return defaultValue;
+			String masterDataTaskTable = DynamoConstants.MASTER_DATA_TASK_TRACKER_TABLE_NAME;
+			Map<String, Object> result = dynamoService.retrieveDataList(masterDataTaskTable, fileId,
+					searchRequest, userOrgId);
+
+			@SuppressWarnings("unchecked")
+			List<Map<String, AttributeValue>> items = (List<Map<String, AttributeValue>>) result.get("items");
+			Map<String, Object> totalCountMap = new HashMap<>();
+			totalCountMap.put("totalCount", result.get("totalCount"));
+
+			List<Map<String, Object>> dynamicList = new ArrayList<>();
+			for (Map<String, AttributeValue> item : items) {
+
+				Map<String, Object> dynamicItem = dynamoItemToJavaMap(item);
+				dynamicList.add(dynamicItem);
+			}
+			dynamicList.add(totalCountMap);
+			return dynamicList;
+		} catch (Exception ex) {
+			logger.error("An error occurred while retireving data list.... {}", ex);
+			throw new WorkflowServiceException("An error occurred while retireving data list", ex);
 		}
+
 	}
+ 
 
 	@Override
 	public boolean isAllDataProcessed(String fileId) {
 		return processStatusObserverService.isAllDataProcessed(fileId);
 	}
 	
+ 
+	
+	@Override
+	public Map<String, Object> retrieveDataRecordDetailbyWorkflowId(String workflowStatusId) {
+
+		try {
+			
+			Map<String, AttributeValue> workflowStatusData = dynamoService
+					.getDataByWorkflowStatusId(DynamoConstants.MASTER_DATA_TASK_TRACKER_TABLE_NAME, workflowStatusId);
+			
+			if (workflowStatusData == null || workflowStatusData.isEmpty()) {
+				throw new WorkflowServiceException("No matching data record found");
+			}
+
+			logger.info("retrieved data record by workflow id");
+			Map<String, Object> dynamicItem = dynamoItemToJavaMap(workflowStatusData);
+			logger.info("converted dynamo Item to Map while retireving workflow data record by id");
+			return dynamicItem;
+			
+		} catch (Exception ex) {
+			logger.error("An error occurred while retireving workflow data record by id.... {}", ex);
+			throw new WorkflowServiceException("An error occurred while retireving workflow data record by id", ex);
+		}
+
+	}
+	
+	
+	
+
+	private Map<String, Object> dynamoItemToJavaMap(Map<String, AttributeValue> itemAttributes) {
+		Map<String, Object> plainItem = new HashMap<>();
+		for (Map.Entry<String, AttributeValue> attrEntry : itemAttributes.entrySet()) {
+			plainItem.put(attrEntry.getKey(), convertAttributeValue(attrEntry.getValue()));
+		}
+		return plainItem;
+	}
+
+	private Object convertAttributeValue(AttributeValue attrValue) {
+		if (attrValue.s() != null) {
+			return attrValue.s();
+		}
+		if (attrValue.n() != null) {
+			return attrValue.n(); // keep as string, or parse to Number if you want
+		}
+		if (attrValue.bool() != null) {
+			return attrValue.bool();
+		}
+		if (attrValue.hasL()) {
+			List<Object> listValues = new ArrayList<>();
+			for (AttributeValue element : attrValue.l()) {
+				listValues.add(convertAttributeValue(element)); // recursive call
+			}
+			return listValues;
+		}
+		if (attrValue.hasM()) {
+			Map<String, Object> mapValue = new HashMap<>();
+			for (Map.Entry<String, AttributeValue> mapEntry : attrValue.m().entrySet()) {
+				mapValue.put(mapEntry.getKey(), convertAttributeValue(mapEntry.getValue())); // recursive call
+			}
+			return mapValue;
+		}
+		if (attrValue.hasSs()) {
+			return new ArrayList<>(attrValue.ss());
+		}
+		if (attrValue.hasNs()) {
+			return new ArrayList<>(attrValue.ns());
+		}
+		if (attrValue.hasBs()) {
+			return new ArrayList<>(attrValue.bs());
+		}
+		return null; // or attrValue.toString() if you want a fallback
+	}
+ 
 
 }

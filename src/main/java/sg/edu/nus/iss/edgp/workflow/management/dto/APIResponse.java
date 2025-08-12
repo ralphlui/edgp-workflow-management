@@ -27,5 +27,11 @@ public class APIResponse<T> {
 		return APIResponse.<T>builder().success(true).message(message).totalRecord(0).build();
 	}
 	
+	public static <T> APIResponse<T> successWithEmptyData(T data, String message) {
+		return APIResponse.<T>builder().success(true).message(message).data(data).totalRecord(0).build();
+	}
 	
+	public static <T> APIResponse<T> success(T data, String message) {
+		return APIResponse.<T>builder().success(true).message(message).data(data).totalRecord(1).build();
+	}
 }

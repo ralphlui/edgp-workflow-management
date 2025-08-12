@@ -8,15 +8,22 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import sg.edu.nus.iss.edgp.workflow.management.dto.APIResponse;
 
-
-
-
+@RestControllerAdvice
 public class GlobalExceptionHandler {
 	
 	 private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+	 
+		@ExceptionHandler(WorkflowServiceException.class)
+		public ResponseEntity<String> handleWorflowServiceNotFoundException(WorkflowServiceException ex) {
+
+			ex.printStackTrace();
+
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
+		}
 
 	 @SuppressWarnings("rawtypes")
 		@ExceptionHandler(Exception.class)

@@ -5,4 +5,5 @@ public class DynamoConstants {
 	public static final String FILE_STATUS = "FileStatus";
 	public static final String MASTER_DATA_TABLE_NAME = "MasterData";
 	public static final String MASTER_DATA_HEADER_TABLE_NAME = "MasterDataHeader";
+
 }
