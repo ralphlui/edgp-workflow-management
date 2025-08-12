@@ -28,7 +28,7 @@ public class ProcessStatusObserverScheduler {
 			// 1) Get the current PROCESSING file
 			String fileId = processStatusObserverService.fetchOldestIdByProcessStage(FileProcessStage.PROCESSING);
 
-			if (fileId.isEmpty()) {
+			if (fileId == null || fileId.isEmpty()) {
 				logger.info("No processing files found.");
 				return;
 

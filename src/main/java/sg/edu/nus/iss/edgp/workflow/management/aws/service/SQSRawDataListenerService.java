@@ -20,7 +20,8 @@ public class SQSRawDataListenerService {
 	private final SQSRuleRequestListenerService requestListenerService;
     private final ObjectMapper objectMapper;
 
-    @SqsListener("${aws.sqs.queue.workflow.ingestion.url}")
+  
+    @SqsListener(value = "${aws.sqs.queue.workflow.ingestion.url}", factory = "workflowSqsFactory")
     public void handleRawDataMessage(String message) {
     	logger.info( "Received Raw Data Message from SQS");
 
