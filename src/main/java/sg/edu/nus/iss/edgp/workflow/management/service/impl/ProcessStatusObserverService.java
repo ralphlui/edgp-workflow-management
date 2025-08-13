@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import sg.edu.nus.iss.edgp.workflow.management.enums.FileProcessStage;
 import sg.edu.nus.iss.edgp.workflow.management.service.IProcessStatusObserverService;
 import sg.edu.nus.iss.edgp.workflow.management.utility.DynamoConstants;
+import sg.edu.nus.iss.edgp.workflow.management.utility.Status;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
@@ -70,23 +71,33 @@ public class ProcessStatusObserverService implements IProcessStatusObserverServi
 	}
 
 	@Override
-	public boolean isAllTrueForFile(String fileId) {
-		ScanRequest req = ScanRequest.builder().tableName(DynamoConstants.MASTER_DATA_TASK_TRACKER_TABLE_NAME.trim())
-				.filterExpression("#fid = :fid AND #fs = :false")
-				.expressionAttributeNames(Map.of("#fid", "file_id", "#fs", "final_status"))
-				.expressionAttributeValues(Map.of(":fid", AttributeValue.builder().s(fileId).build(), ":false",
-						AttributeValue.builder().s("false").build()))
-				.select(Select.COUNT).build();
+	public String getAllStatusForFile(String fileId) {
+	    ScanRequest req = ScanRequest.builder()
+	        .tableName(DynamoConstants.MASTER_DATA_TASK_TRACKER_TABLE_NAME.trim())
+	        .filterExpression("#fid = :fid AND #fs = :fail")
+	        .expressionAttributeNames(Map.of(
+	            "#fid", "file_id",
+	            "#fs", "final_status"
+	        ))
+	        .expressionAttributeValues(Map.of(
+	            ":fid", AttributeValue.builder().s(fileId).build(),
+	            ":fail", AttributeValue.builder().s(Status.FAIL.toString()).build()
+	        ))
+	        .select(Select.COUNT)
+	        .build();
 
-		for (ScanResponse page : dynamoDbClient.scanPaginator(req)) {
-			if (page.count() > 0)
-				return false;
-		}
-		return true;
+	    for (ScanResponse page : dynamoDbClient.scanPaginator(req)) {
+	        if (page.count() > 0) {
+	            return Status.FAIL.toString(); // At least one fail found
+	        }
+	    }
+
+	    return Status.SUCCESS.toString(); // No fail found
 	}
 
+
 	@Override
-	public void updateFileStageAndStatus(String fileId, FileProcessStage stage, boolean status) {
+	public void updateFileStageAndStatus(String fileId, FileProcessStage stage, String status) {
 		Map<String, AttributeValue> key = Map.of("id", AttributeValue.builder().s(fileId).build());
 
 		UpdateItemRequest req = UpdateItemRequest.builder()
@@ -94,7 +105,7 @@ public class ProcessStatusObserverService implements IProcessStatusObserverServi
 				.updateExpression("SET #stage = :stage, #status = :status, updated_date = :now")
 				.expressionAttributeNames(Map.of("#stage", "process_stage", "#status", "file_status"))
 				.expressionAttributeValues(Map.of(":stage", AttributeValue.builder().s(stage.name()).build(), ":status",
-						AttributeValue.builder().bool(status).build(), ":now",
+						AttributeValue.builder().s(status).build(), ":now",
 						AttributeValue.builder().s(java.time.Instant.now().toString()).build()))
 				.conditionExpression("attribute_exists(id)").returnValues(ReturnValue.UPDATED_NEW).build();
 

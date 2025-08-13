@@ -41,7 +41,7 @@ public class ProcessStatusObserverScheduler {
 
 					boolean isProcessed = workflowService.isAllDataProcessed(fileId);
 					if (isProcessed) {
-						boolean fileStatus = processStatusObserverService.isAllTrueForFile(fileId);
+						String fileStatus = processStatusObserverService.getAllStatusForFile(fileId);
 
 						// (2) update file status and file stage as complete
 						processStatusObserverService.updateFileStageAndStatus(fileId, FileProcessStage.COMPLETE,

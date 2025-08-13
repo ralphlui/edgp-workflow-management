@@ -6,6 +6,6 @@ public interface IProcessStatusObserverService {
 	
     String fetchOldestIdByProcessStage(FileProcessStage stage);
 	boolean isAllDataProcessed(String fileId);
-	boolean isAllTrueForFile(String fileId);
-	void updateFileStageAndStatus(String fileId, FileProcessStage stage, boolean status);
+	String getAllStatusForFile(String fileId);
+	void updateFileStageAndStatus(String fileId, FileProcessStage stage, String status);
 }
