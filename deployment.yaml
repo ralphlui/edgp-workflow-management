@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edgp-app-workflow
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: edgp-app-workflow
+  template:
+    metadata:
+      labels:
+        app: edgp-app-workflow
+    spec:
+      containers:
+        - name: edgp-app-workflow
+          image: public.ecr.aws/q1b5w5y6/edgp-app-workflow:VERSION
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8084
+          env:
+            - name: AWS_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: my-configmap
+                  key: AWS_REGION
+            - name: SPRING_PROFILES_ACTIVE
+              valueFrom:
+                configMapKeyRef:
+                  name: my-configmap
+                  key: SPRING_PROFILES_ACTIVE
+            - name: AUDIT_SQS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: my-configmap
+                  key: AUDIT_SQS_URL
+            - name: WORKFLOW_INGESTION_SQS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: my-configmap
+                  key: WORKFLOW_INGESTION_SQS_URL
+            - name: WORKFLOW_RULES_REQUEST_SQS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: my-configmap
+                  key: WORKFLOW_RULES_REQUEST_SQS_URL
+            - name: WORKFLOW_RULES_RESPONSE_SQS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: my-configmap
+                  key: WORKFLOW_RULES_RESPONSE_SQS_URL
+            - name: CLIENT_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: my-configmap
+                  key: FRONTEND_URL
+            - name: ADMIN_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: my-configmap
+                  key: ADMIN_URL
+            - name: ORG_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: my-configmap
+                  key: ORG_URL
+            - name: aws_access_key_id
+              valueFrom:
+                secretKeyRef:
+                  name: my-secret
+                  key: aws_edgp_access_key_id
+            - name: aws_secret_key_id
+              valueFrom:
+                secretKeyRef:
+                  name: my-secret
+                  key: aws_edgp_secret_key_id
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: my-secret
+                  key: aws_edgp_access_key_id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: my-secret
+                  key: aws_edgp_secret_key_id
+          resources:
+           requests:
+             cpu: "50m"
+             memory: "250Mi"
+           limits:
+             cpu: "350m"
+             memory: "500Mi"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: workflow-k8s-service
+spec:
+  selector:
+    app: edgp-app-workflow
+  ports:
+    - protocol: TCP
+      port: 8084
+      targetPort: 8084
+  type: NodePort
