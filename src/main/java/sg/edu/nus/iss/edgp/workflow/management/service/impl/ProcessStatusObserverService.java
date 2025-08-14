@@ -3,12 +3,12 @@ package sg.edu.nus.iss.edgp.workflow.management.service.impl;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import sg.edu.nus.iss.edgp.workflow.management.enums.FileProcessStage;
 import sg.edu.nus.iss.edgp.workflow.management.service.IProcessStatusObserverService;
-import sg.edu.nus.iss.edgp.workflow.management.utility.DynamoConstants;
 import sg.edu.nus.iss.edgp.workflow.management.utility.Status;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
@@ -24,10 +24,16 @@ import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 public class ProcessStatusObserverService implements IProcessStatusObserverService {
 
 	private final DynamoDbClient dynamoDbClient;
+	
+	@Value("${aws.dynamodb.table.master.data.header}")
+	private String masterDataHeaderTableName;
+	
+	@Value("${aws.dynamodb.table.master.data.task}")
+	private String masterDataTaskTrackerTableName;
 
 	@Override
 	public String fetchOldestIdByProcessStage(FileProcessStage stage) {
-		ScanRequest req = ScanRequest.builder().tableName(DynamoConstants.MASTER_DATA_HEADER_TABLE_NAME.trim())
+		ScanRequest req = ScanRequest.builder().tableName(masterDataHeaderTableName.trim())
 				.filterExpression("#ps = :ps").expressionAttributeNames(Map.of("#ps", "process_stage"))
 				.expressionAttributeValues(Map.of(":ps", AttributeValue.builder().s(stage.name()).build()))
 				.projectionExpression("id, uploaded_date").build();
@@ -57,7 +63,7 @@ public class ProcessStatusObserverService implements IProcessStatusObserverServi
 	@Override
 	public boolean isAllDataProcessed(String fileId) {
 
-		ScanRequest scanRequest = ScanRequest.builder().tableName(DynamoConstants.MASTER_DATA_TASK_TRACKER_TABLE_NAME.trim()).filterExpression("file_id = :fid")
+		ScanRequest scanRequest = ScanRequest.builder().tableName(masterDataTaskTrackerTableName.trim()).filterExpression("file_id = :fid")
 				.expressionAttributeValues(Map.of(":fid", AttributeValue.builder().s(fileId).build())).build();
 
 		List<Map<String, AttributeValue>> results = dynamoDbClient.scan(scanRequest).items();
@@ -73,7 +79,7 @@ public class ProcessStatusObserverService implements IProcessStatusObserverServi
 	@Override
 	public String getAllStatusForFile(String fileId) {
 	    ScanRequest req = ScanRequest.builder()
-	        .tableName(DynamoConstants.MASTER_DATA_TASK_TRACKER_TABLE_NAME.trim())
+	        .tableName(masterDataTaskTrackerTableName.trim())
 	        .filterExpression("#fid = :fid AND #fs = :fail")
 	        .expressionAttributeNames(Map.of(
 	            "#fid", "file_id",
@@ -101,7 +107,7 @@ public class ProcessStatusObserverService implements IProcessStatusObserverServi
 		Map<String, AttributeValue> key = Map.of("id", AttributeValue.builder().s(fileId).build());
 
 		UpdateItemRequest req = UpdateItemRequest.builder()
-				.tableName(DynamoConstants.MASTER_DATA_HEADER_TABLE_NAME.trim()).key(key)
+				.tableName(masterDataHeaderTableName.trim()).key(key)
 				.updateExpression("SET #stage = :stage, #status = :status, updated_date = :now")
 				.expressionAttributeNames(Map.of("#stage", "process_stage", "#status", "file_status"))
 				.expressionAttributeValues(Map.of(":stage", AttributeValue.builder().s(stage.name()).build(), ":status",

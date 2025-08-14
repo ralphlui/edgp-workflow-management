@@ -8,6 +8,7 @@ import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
@@ -15,7 +16,6 @@ import sg.edu.nus.iss.edgp.workflow.management.dto.SearchRequest;
 import sg.edu.nus.iss.edgp.workflow.management.dto.WorkflowStatus;
 import sg.edu.nus.iss.edgp.workflow.management.exception.WorkflowServiceException;
 import sg.edu.nus.iss.edgp.workflow.management.service.IWorkflowService;
-import sg.edu.nus.iss.edgp.workflow.management.utility.DynamoConstants;
 import sg.edu.nus.iss.edgp.workflow.management.utility.Status;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
@@ -28,6 +28,10 @@ public class WorkflowService implements IWorkflowService {
 	private final ProcessStatusObserverService  processStatusObserverService;
 	private final DynamicSQLService dynamicSQLService;
 	private static final Logger logger = LoggerFactory.getLogger(WorkflowService.class);
+	
+	
+	@Value("${aws.dynamodb.table.master.data.task}")
+	private String masterDataTaskTrackerTableName;
 
 	@SuppressWarnings("unchecked")
 	@Override
@@ -44,13 +48,12 @@ public class WorkflowService implements IWorkflowService {
 			}
 
 			// workflow status table
-			String masterDataTaskTable = DynamoConstants.MASTER_DATA_TASK_TRACKER_TABLE_NAME;
-			if (!dynamoService.tableExists(masterDataTaskTable)) {
-				dynamoService.createTable(masterDataTaskTable);
+			if (!dynamoService.tableExists(masterDataTaskTrackerTableName.trim())) {
+				dynamoService.createTable(masterDataTaskTrackerTableName.trim());
 			}
 
 			Map<String, AttributeValue> workflowStatusData = dynamoService
-					.getDataByWorkflowStatusId(DynamoConstants.MASTER_DATA_TASK_TRACKER_TABLE_NAME, workflowStatusId);
+					.getDataByWorkflowStatusId(masterDataTaskTrackerTableName.trim(), workflowStatusId);
 
 			if (workflowStatusData == null || workflowStatusData.isEmpty()) {
 
@@ -68,7 +71,7 @@ public class WorkflowService implements IWorkflowService {
 						.ifPresent(list -> workflowStatus.setFailedValidations(List.copyOf(list)));
 
 				workflowStatus.setId(workflowStatusId);
-				dynamoService.updateWorkflowStatus(masterDataTaskTable, workflowStatus);
+				dynamoService.updateWorkflowStatus(masterDataTaskTrackerTableName.trim(), workflowStatus);
 				String domainTableName = (String) rawData.get("domain_name");
 				insetCleanMasterData(status, domainTableName, workflowStatusData);
 
@@ -101,8 +104,7 @@ public class WorkflowService implements IWorkflowService {
 	public List<Map<String, Object>> retrieveDataList(String fileId, SearchRequest searchRequest, String userOrgId) {
 
 		try {
-			String masterDataTaskTable = DynamoConstants.MASTER_DATA_TASK_TRACKER_TABLE_NAME;
-			Map<String, Object> result = dynamoService.retrieveDataList(masterDataTaskTable, fileId,
+			Map<String, Object> result = dynamoService.retrieveDataList(masterDataTaskTrackerTableName.trim(), fileId,
 					searchRequest, userOrgId);
 
 			@SuppressWarnings("unchecked")
@@ -139,7 +141,7 @@ public class WorkflowService implements IWorkflowService {
 		try {
 			
 			Map<String, AttributeValue> workflowStatusData = dynamoService
-					.getDataByWorkflowStatusId(DynamoConstants.MASTER_DATA_TASK_TRACKER_TABLE_NAME, workflowStatusId);
+					.getDataByWorkflowStatusId(masterDataTaskTrackerTableName.trim(), workflowStatusId);
 			
 			if (workflowStatusData == null || workflowStatusData.isEmpty()) {
 				throw new WorkflowServiceException("No matching data record found");

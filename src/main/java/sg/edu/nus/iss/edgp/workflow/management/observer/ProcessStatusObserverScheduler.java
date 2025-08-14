@@ -2,6 +2,7 @@ package sg.edu.nus.iss.edgp.workflow.management.observer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -10,7 +11,6 @@ import sg.edu.nus.iss.edgp.workflow.management.enums.FileProcessStage;
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.DynamicDynamoService;
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.ProcessStatusObserverService;
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.WorkflowService;
-import sg.edu.nus.iss.edgp.workflow.management.utility.DynamoConstants;
 
 @RequiredArgsConstructor
 @Service
@@ -21,14 +21,21 @@ public class ProcessStatusObserverScheduler {
 	private final WorkflowService workflowService;
 	private final ProcessStatusObserverService processStatusObserverService;
 	private final DynamicDynamoService dynamoService;
+	
+	@Value("${aws.dynamodb.table.master.data.header}")
+	private String masterDataHeaderTableName;
+	
+	
+	@Value("${aws.dynamodb.table.master.data.task}")
+	private String masterDataTaskTrackerTableName;
 
 	@Scheduled(fixedDelayString = "PT1M")
 	public void checkWorkflowStatus() {
 		logger.info("Checking workflow status...");
 
 		try {
-			if (dynamoService.tableExists(DynamoConstants.MASTER_DATA_HEADER_TABLE_NAME.trim())
-					&& dynamoService.tableExists(DynamoConstants.MASTER_DATA_TASK_TRACKER_TABLE_NAME.trim())) {
+			if (dynamoService.tableExists(masterDataHeaderTableName.trim())
+					&& dynamoService.tableExists(masterDataTaskTrackerTableName.trim())) {
 
 				// 1) Get the current PROCESSING file
 				String fileId = processStatusObserverService.fetchOldestIdByProcessStage(FileProcessStage.PROCESSING);
