@@ -33,7 +33,7 @@ public class ProcessStatusObserverService implements IProcessStatusObserverServi
 
 	@Override
 	public String fetchOldestIdByProcessStage(FileProcessStage stage) {
-		ScanRequest req = ScanRequest.builder().tableName(masterDataHeaderTableName)
+		ScanRequest req = ScanRequest.builder().tableName(masterDataHeaderTableName.trim())
 				.filterExpression("#ps = :ps").expressionAttributeNames(Map.of("#ps", "process_stage"))
 				.expressionAttributeValues(Map.of(":ps", AttributeValue.builder().s(stage.name()).build()))
 				.projectionExpression("id, uploaded_date").build();
