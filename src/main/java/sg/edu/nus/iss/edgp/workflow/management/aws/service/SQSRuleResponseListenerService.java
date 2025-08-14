@@ -16,11 +16,11 @@ import com.fasterxml.jackson.core.type.TypeReference;
 
 @Service
 @RequiredArgsConstructor
-public class SQSListenerService {
+public class SQSRuleResponseListenerService {
 
 	private final ObjectMapper objectMapper = new ObjectMapper();
 	private final WorkflowService workflowService;
-	private static final Logger logger = LoggerFactory.getLogger(SQSListenerService.class);
+	private static final Logger logger = LoggerFactory.getLogger(SQSRuleResponseListenerService.class);
 
 	@SqsListener(value = "${aws.sqs.queue.workflow.rule.response.url}", factory = "workflowSqsFactory")
 	public void handleRuleServiceSqsMessage(String message) {
