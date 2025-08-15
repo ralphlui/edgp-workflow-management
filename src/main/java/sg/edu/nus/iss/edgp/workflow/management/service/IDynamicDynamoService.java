@@ -19,4 +19,6 @@ public interface IDynamicDynamoService {
 
 	Map<String, Object> retrieveDataList(String tableName, String fileId,
 			SearchRequest searchRequest, String userOrgId);
+	
+	 Map<String, AttributeValue> getFileDataByFileId(String tableName, String id);
 }

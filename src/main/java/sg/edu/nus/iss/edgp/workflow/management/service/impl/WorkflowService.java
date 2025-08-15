@@ -23,15 +23,16 @@ import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 @Service
 public class WorkflowService implements IWorkflowService {
 
-
 	private final DynamicDynamoService dynamoService;
-	private final ProcessStatusObserverService  processStatusObserverService;
+	private final ProcessStatusObserverService processStatusObserverService;
 	private final DynamicSQLService dynamicSQLService;
 	private static final Logger logger = LoggerFactory.getLogger(WorkflowService.class);
-	
-	
+
 	@Value("${aws.dynamodb.table.master.data.task}")
 	private String masterDataTaskTrackerTableName;
+
+	@Value("${aws.dynamodb.table.master.data.header}")
+	private String masterDataHeaderTableName;
 
 	@SuppressWarnings("unchecked")
 	@Override
@@ -99,7 +100,6 @@ public class WorkflowService implements IWorkflowService {
 		}
 	}
 
-
 	@Override
 	public List<Map<String, Object>> retrieveDataList(String fileId, SearchRequest searchRequest, String userOrgId) {
 
@@ -109,13 +109,22 @@ public class WorkflowService implements IWorkflowService {
 
 			@SuppressWarnings("unchecked")
 			List<Map<String, AttributeValue>> items = (List<Map<String, AttributeValue>>) result.get("items");
-			Map<String, Object> totalCountMap = new HashMap<>();
-			totalCountMap.put("totalCount", result.get("totalCount"));
+			final Map<String, Object> totalCountMap = new HashMap<>(Map.of("totalCount", result.get("totalCount")));
+			Optional<String> fileNameOpt = Optional.empty();
+
+			if (fileId != null && !fileId.isBlank()) {
+				Map<String, AttributeValue> fileRecord = dynamoService
+						.getFileDataByFileId(masterDataHeaderTableName.trim(), fileId);
+
+				fileNameOpt = Optional.ofNullable(fileRecord).map(m -> m.get("file_name")).map(AttributeValue::s)
+						.filter(s -> !s.isBlank());
+			}
 
 			List<Map<String, Object>> dynamicList = new ArrayList<>();
 			for (Map<String, AttributeValue> item : items) {
 
 				Map<String, Object> dynamicItem = dynamoItemToJavaMap(item);
+				fileNameOpt.ifPresent(fn -> dynamicItem.put("fileName", fn));
 				dynamicList.add(dynamicItem);
 			}
 			dynamicList.add(totalCountMap);
@@ -126,23 +135,20 @@ public class WorkflowService implements IWorkflowService {
 		}
 
 	}
- 
 
 	@Override
 	public boolean isAllDataProcessed(String fileId) {
 		return processStatusObserverService.isAllDataProcessed(fileId);
 	}
-	
- 
-	
+
 	@Override
 	public Map<String, Object> retrieveDataRecordDetailbyWorkflowId(String workflowStatusId) {
 
 		try {
-			
+
 			Map<String, AttributeValue> workflowStatusData = dynamoService
 					.getDataByWorkflowStatusId(masterDataTaskTrackerTableName.trim(), workflowStatusId);
-			
+
 			if (workflowStatusData == null || workflowStatusData.isEmpty()) {
 				throw new WorkflowServiceException("No matching data record found");
 			}
@@ -151,16 +157,13 @@ public class WorkflowService implements IWorkflowService {
 			Map<String, Object> dynamicItem = dynamoItemToJavaMap(workflowStatusData);
 			logger.info("converted dynamo Item to Map while retireving workflow data record by id");
 			return dynamicItem;
-			
+
 		} catch (Exception ex) {
 			logger.error("An error occurred while retireving workflow data record by id.... {}", ex);
 			throw new WorkflowServiceException("An error occurred while retireving workflow data record by id", ex);
 		}
 
 	}
-	
-	
-	
 
 	private Map<String, Object> dynamoItemToJavaMap(Map<String, AttributeValue> itemAttributes) {
 		Map<String, Object> plainItem = new HashMap<>();
@@ -205,6 +208,5 @@ public class WorkflowService implements IWorkflowService {
 		}
 		return null; // or attrValue.toString() if you want a fallback
 	}
- 
 
 }
