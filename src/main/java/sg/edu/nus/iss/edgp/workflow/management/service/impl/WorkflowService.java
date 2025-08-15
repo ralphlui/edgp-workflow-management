@@ -109,7 +109,7 @@ public class WorkflowService implements IWorkflowService {
 
 			@SuppressWarnings("unchecked")
 			List<Map<String, AttributeValue>> items = (List<Map<String, AttributeValue>>) result.get("items");
-			final Map<String, Object> toalCountMap = new HashMap<>(Map.of("totalCount", result.get("totalCount")));
+			final Map<String, Object> totalCountMap = new HashMap<>(Map.of("totalCount", result.get("totalCount")));
 			Optional<String> fileNameOpt = Optional.empty();
 
 			if (fileId != null && !fileId.isBlank()) {
@@ -127,7 +127,7 @@ public class WorkflowService implements IWorkflowService {
 				fileNameOpt.ifPresent(fn -> dynamicItem.put("fileName", fn));
 				dynamicList.add(dynamicItem);
 			}
-			dynamicList.add(toalCountMap);
+			dynamicList.add(totalCountMap);
 			return dynamicList;
 		} catch (Exception ex) {
 			logger.error("An error occurred while retireving data list.... {}", ex);

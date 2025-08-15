@@ -112,14 +112,14 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 		}
 	}
 	
-	
+	@Override
 	public Map<String, AttributeValue> getFileDataByFileId(String tableName, String id) {
 
 		try {
 
 			if (id == null || id.isEmpty()) {
 				throw new DynamicDynamoServiceException(
-						"File id is empty while  retireving file data.");
+						"File id is empty while retireving file data by file Id.");
 			}
 
 			Map<String, AttributeValue> expressionValues = new HashMap<>();
@@ -137,8 +137,8 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 			return results.get(0);
 
 		} catch (Exception ex) {
-			logger.error("An error occurred while retireving data by workflow status id.... {}", ex);
-			throw new DynamicDynamoServiceException("An error occurred while retireving data by workflow status id",
+			logger.error("An error occurred while retireving file data by file id.... {}", ex);
+			throw new DynamicDynamoServiceException("An error occurred while retireving file data by file id",
 					ex);
 		}
 	}
