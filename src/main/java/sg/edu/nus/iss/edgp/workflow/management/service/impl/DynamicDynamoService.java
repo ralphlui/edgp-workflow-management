@@ -111,6 +111,37 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 					ex);
 		}
 	}
+	
+	
+	public Map<String, AttributeValue> getFileDataByFileId(String tableName, String id) {
+
+		try {
+
+			if (id == null || id.isEmpty()) {
+				throw new DynamicDynamoServiceException(
+						"File id is empty while  retireving file data.");
+			}
+
+			Map<String, AttributeValue> expressionValues = new HashMap<>();
+			expressionValues.put(":id", AttributeValue.builder().s(id).build());
+
+			ScanRequest scanRequest = ScanRequest.builder().tableName(tableName).filterExpression("id = :id")
+					.expressionAttributeValues(expressionValues).build();
+
+			List<Map<String, AttributeValue>> results = dynamoDbClient.scan(scanRequest).items();
+
+			if (results.isEmpty()) {
+				return null;
+			}
+
+			return results.get(0);
+
+		} catch (Exception ex) {
+			logger.error("An error occurred while retireving data by workflow status id.... {}", ex);
+			throw new DynamicDynamoServiceException("An error occurred while retireving data by workflow status id",
+					ex);
+		}
+	}
 
 	@Override
 	public void updateWorkflowStatus(String tableName, WorkflowStatus workflowStatus) {
