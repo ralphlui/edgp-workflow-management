@@ -21,10 +21,10 @@ public class DomainDataService {
 	private static final Logger logger = LoggerFactory.getLogger(DomainDataService.class);
 	private final DynamicSQLRepository dynamicSQLRepository;
 
-	public Map<Long, List<Map<String, Object>>> retrieveAllDomainDataList(String domainName, String orgId) {
+	public Map<Long, List<Map<String, Object>>> retrieveAllDomainDataList(String domainName, String userOrgId, String fileId) {
 		try {
 
-			List<Map<String, Object>> domainDataList = dynamicSQLRepository.findAllDataList(domainName);
+			List<Map<String, Object>> domainDataList = dynamicSQLRepository.findAllDomainDataList(domainName, userOrgId, fileId);
 			long totalRecord = domainDataList.size();
 			Map<Long, List<Map<String, Object>>> result = new HashMap<>();
 			result.put(totalRecord, domainDataList);
@@ -39,10 +39,10 @@ public class DomainDataService {
 	}
 	
 	
-	public Map<Long, List<Map<String, Object>>> retrievePaginatedDomainDataList(String domainName, String orgId, Pageable pageable) {
+	public Map<Long, List<Map<String, Object>>> retrievePaginatedDomainDataList(String domainName, String userOrgId, String fileId, Pageable pageable) {
 		try {
 
-			Page<Map<String, Object>> domainDataList = dynamicSQLRepository.findPaginatedDataList(domainName, pageable);
+			Page<Map<String, Object>> domainDataList = dynamicSQLRepository.findPaginatedDomainDataList(domainName, userOrgId, fileId, pageable);
 			long totalRecord = domainDataList.getTotalElements();
 			Map<Long, List<Map<String, Object>>> result = new HashMap<>();
 			result.put(totalRecord, domainDataList.getContent());

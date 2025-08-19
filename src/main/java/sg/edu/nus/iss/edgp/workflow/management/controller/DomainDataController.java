@@ -51,7 +51,7 @@ public class DomainDataController {
 	@GetMapping(value = "", produces = "application/json")
 	@PreAuthorize(("hasAuthority('SCOPE_manage:mdm') or hasAuthority('SCOPE_view:mdm')"))
 	public ResponseEntity<APIResponse<List<Map<String, Object>>>> retrievePolicyList(
-			@RequestHeader("Authorization") String authorizationHeader,
+			@RequestHeader("Authorization") String authorizationHeader, @RequestHeader("X-FileId") String fileId,
 			@Valid @ModelAttribute SearchRequest searchRequest) {
 
 		logger.info("Call domain data getAll API with page={}, size={}", searchRequest.getPage(),
@@ -81,12 +81,12 @@ public class DomainDataController {
 			}
 
 			if (searchRequest.getPage() == null) {
-				resultMap = domainDataService.retrieveAllDomainDataList(domainName, userOrgId);
+				resultMap = domainDataService.retrieveAllDomainDataList(domainName, userOrgId, fileId);
 				logger.info("all domain data list size {}", resultMap.size());
 			} else {
 				Pageable pageable = PageRequest.of(searchRequest.getPage() - 1, searchRequest.getSize(),
 						Sort.by("updated_date").ascending());
-				resultMap = domainDataService.retrievePaginatedDomainDataList(domainName, userOrgId, pageable);
+				resultMap = domainDataService.retrievePaginatedDomainDataList(domainName, userOrgId, fileId, pageable);
 				logger.info("paginated domain data list size {}", resultMap.size());
 			}
 

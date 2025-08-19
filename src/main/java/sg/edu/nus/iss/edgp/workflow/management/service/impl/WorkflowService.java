@@ -89,12 +89,13 @@ public class WorkflowService implements IWorkflowService {
 		if (status != null && Status.SUCCESS.toString().equals(status.toUpperCase()) && !domainTableName.isEmpty()) {
 			Map<String, Object> workflowStatusFields = dynamoItemToJavaMap(workflowStatusData);
 
-			Optional.ofNullable(workflowStatusFields.remove("id"))
-					.ifPresent(v -> workflowStatusFields.put("workflowStatusId", v));
+//			Optional.ofNullable(workflowStatusFields.remove("id"))
+//					.ifPresent(v -> workflowStatusFields.put("workflowStatusId", v));
 
-			workflowStatusFields.remove("created_date");
-			workflowStatusFields.remove("final_status");
-			workflowStatusFields.remove("rule_status");
+			Optional.ofNullable(workflowStatusFields.remove("id"));
+			Optional.ofNullable(workflowStatusFields.remove("created_date"));
+			Optional.ofNullable(workflowStatusFields.remove("final_status"));
+			Optional.ofNullable(workflowStatusFields.remove("rule_status"));
 			dynamicSQLService.buildCreateTableSQL(workflowStatusFields, domainTableName);
 
 		}
