@@ -1,5 +1,7 @@
 package sg.edu.nus.iss.edgp.workflow.management.service;
 
+import java.io.File;
+import java.util.HashMap;
 import java.util.Map;
 
 import sg.edu.nus.iss.edgp.workflow.management.dto.SearchRequest;
@@ -15,10 +17,14 @@ public interface IDynamicDynamoService {
 	Map<String, AttributeValue> getDataByWorkflowStatusId(String tableName, String id);
 
 	void updateWorkflowStatus(String tableName, WorkflowStatus workflowStatus);
-	
 
-	Map<String, Object> retrieveDataList(String tableName, String fileId,
-			SearchRequest searchRequest, String userOrgId);
-	
-	 Map<String, AttributeValue> getFileDataByFileId(String tableName, String id);
+	Map<String, Object> retrieveDataList(String tableName, String fileId, SearchRequest searchRequest,
+			String userOrgId);
+
+	Map<String, AttributeValue> getFileDataByFileId(String tableName, String id);
+
+	String getUploadUserByFileId(String tableName, String id);
+
+	File exportToCsv(String tableName, HashMap<String, String> fileInfo);
+
 }

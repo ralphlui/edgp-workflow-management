@@ -1,5 +1,6 @@
 package sg.edu.nus.iss.edgp.workflow.management.service.impl;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -32,18 +33,20 @@ public class ProcessStatusObserverService implements IProcessStatusObserverServi
 	private String masterDataTaskTrackerTableName;
 
 	@Override
-	public String fetchOldestIdByProcessStage(FileProcessStage stage) {
+	public HashMap<String,String> fetchOldestIdByProcessStage(FileProcessStage stage) {
 		ScanRequest req = ScanRequest.builder().tableName(masterDataHeaderTableName.trim())
 				.filterExpression("#ps = :ps").expressionAttributeNames(Map.of("#ps", "process_stage"))
 				.expressionAttributeValues(Map.of(":ps", AttributeValue.builder().s(stage.name()).build()))
-				.projectionExpression("id, uploaded_date").build();
-
-		String fileId = null;
+				.projectionExpression("id, uploaded_date,file_name").build();
+		HashMap<String,String> result = new HashMap<String, String>();
+		String fileId = "";
+		String fileName ="";
 		String fileCreated = null;
 
 		for (ScanResponse page : dynamoDbClient.scanPaginator(req)) {
 			for (Map<String, AttributeValue> item : page.items()) {
 				AttributeValue id = item.get("id");
+				AttributeValue name = item.get("file_name");
 				AttributeValue created = item.get("uploaded_date");
 				if (id == null || id.s() == null || id.s().isBlank())
 					continue;
@@ -54,10 +57,13 @@ public class ProcessStatusObserverService implements IProcessStatusObserverServi
 				if (fileCreated == null || cd.compareTo(fileCreated) < 0) {
 					fileCreated = cd;
 					fileId = id.s();
+					fileName= name.s();
+					result.put("id", fileId);
+					result.put("name", fileName);
 				}
 			}
 		}
-		return fileId;
+		return result;
 	}
 
 	@Override
