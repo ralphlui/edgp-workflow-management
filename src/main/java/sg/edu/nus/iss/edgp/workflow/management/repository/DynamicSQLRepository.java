@@ -13,6 +13,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collector;
@@ -23,7 +24,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public class WorkflowDataRepository {
+public class DynamicSQLRepository {
 
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
@@ -55,7 +56,7 @@ public class WorkflowDataRepository {
 		System.out.println("Values: " + Arrays.toString(insertData.values().toArray()));
 		System.out.println("Column count: " + insertData.keySet().size());
 
-	    jdbcTemplate.update(sql, insertData.values().toArray());
+		jdbcTemplate.update(sql, insertData.values().toArray());
 	}
 
 	public void validateInsertColumns(String tableName, Set<String> insertColumns, JdbcTemplate jdbcTemplate) {
@@ -108,18 +109,19 @@ public class WorkflowDataRepository {
 								|| sqlType == Types.TIMESTAMP) ? null : "";
 					} else {
 						try {
-							 if (val instanceof Boolean && (sqlType == Types.INTEGER || sqlType == Types.TINYINT || sqlType == Types.SMALLINT || sqlType == Types.BIT)) {
-		                            finalValue = (Boolean) val ? 1 : 0;
-		                        } else {
-		                        	finalValue = switch (sqlType) {
-									case Types.INTEGER -> Integer.parseInt(valStr);
-									case Types.DECIMAL, Types.NUMERIC -> new BigDecimal(valStr);
-									case Types.DOUBLE, Types.FLOAT -> Double.parseDouble(valStr);
-									case Types.DATE -> Date.valueOf(valStr);
-									case Types.TIMESTAMP -> Timestamp.valueOf(valStr);
-									default -> valStr;
-									};
-		                        }
+							if (val instanceof Boolean && (sqlType == Types.INTEGER || sqlType == Types.TINYINT
+									|| sqlType == Types.SMALLINT || sqlType == Types.BIT)) {
+								finalValue = (Boolean) val ? 1 : 0;
+							} else {
+								finalValue = switch (sqlType) {
+								case Types.INTEGER -> Integer.parseInt(valStr);
+								case Types.DECIMAL, Types.NUMERIC -> new BigDecimal(valStr);
+								case Types.DOUBLE, Types.FLOAT -> Double.parseDouble(valStr);
+								case Types.DATE -> Date.valueOf(valStr);
+								case Types.TIMESTAMP -> Timestamp.valueOf(valStr);
+								default -> valStr;
+								};
+							}
 						} catch (Exception ex) {
 							finalValue = valStr; // fallback
 						}
@@ -148,6 +150,19 @@ public class WorkflowDataRepository {
 		}
 
 		return columnTypes;
+	}
+
+	public List<Map<String, Object>> findAllDataList(String tableName) {
+		if (tableName == null || tableName.isEmpty()) {
+			throw new IllegalArgumentException("Table not allowed: " + tableName);
+		}
+		
+		String sql = "SELECT * FROM `" + tableName.toLowerCase() + "`";
+		return jdbcTemplate.queryForList(sql);
+	}
+
+	private String quoteIdent(String ident) {
+		return "\"" + ident.replace("\"", "\"\"") + "\""; 
 	}
 
 }

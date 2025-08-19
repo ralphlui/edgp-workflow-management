@@ -11,7 +11,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
 import sg.edu.nus.iss.edgp.workflow.management.exception.DynamicSQLServiceException;
-import sg.edu.nus.iss.edgp.workflow.management.repository.WorkflowDataRepository;
+import sg.edu.nus.iss.edgp.workflow.management.repository.DynamicSQLRepository;
 import sg.edu.nus.iss.edgp.workflow.management.service.IDynamicSQLService;
 
 @RequiredArgsConstructor
@@ -20,7 +20,7 @@ public class DynamicSQLService implements IDynamicSQLService {
 
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
-	private final WorkflowDataRepository workflowDataRepository;
+	private final DynamicSQLRepository dynamicSQLRepository;
 	private static final Logger logger = LoggerFactory.getLogger(DynamicSQLService.class);
 
 	@Override
@@ -33,6 +33,7 @@ public class DynamicSQLService implements IDynamicSQLService {
 			}
 
 			StringBuilder result = new StringBuilder();
+			tableName = tableName.toLowerCase();
 
 			Iterator<Map.Entry<String, Object>> iterator = data.entrySet().iterator();
 
@@ -69,12 +70,13 @@ public class DynamicSQLService implements IDynamicSQLService {
 	@Override
 	public void insertData(String tableName, Map<String, Object> data) {
 		try {
+			tableName = tableName.toLowerCase();
 			String schema = jdbcTemplate.getDataSource().getConnection().getCatalog();
-			if (!workflowDataRepository.tableExists(schema, tableName)) {
+			if (!dynamicSQLRepository.tableExists(schema, tableName)) {
 				throw new IllegalStateException("No table found. Please set up the table before uploading data.");
 			}
 			data.put("id", UUID.randomUUID().toString());
-			workflowDataRepository.insertRow(tableName, data);
+			dynamicSQLRepository.insertRow(tableName, data);
 			logger.info("successfull inserting data to clean data table");
 
 		} catch (Exception e) {
