@@ -65,4 +65,20 @@ public class JSONReader {
 		}
 		return null;
 	}
+	
+	public String getAccessToken(String email) {
+		JSONObject jsonResponse = new JSONObject();
+		String responseStr = apiCall.getAccessToken(email);
+		try {
+			JSONParser parser = new JSONParser();
+			jsonResponse = (JSONObject) parser.parse(responseStr);
+			JSONObject data = (JSONObject) jsonResponse.get("data");
+			return data.get("token").toString();
+
+		} catch (Exception e) {
+			logger.error("Error parsing JSON response for getActiveUserDetails...", e);
+
+		}
+		return "";
+	}
 }

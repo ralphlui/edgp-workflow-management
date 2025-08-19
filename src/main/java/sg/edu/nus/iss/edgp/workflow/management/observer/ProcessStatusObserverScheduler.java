@@ -1,5 +1,8 @@
 package sg.edu.nus.iss.edgp.workflow.management.observer;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,6 +14,7 @@ import sg.edu.nus.iss.edgp.workflow.management.enums.FileProcessStage;
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.DynamicDynamoService;
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.ProcessStatusObserverService;
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.WorkflowService;
+import sg.edu.nus.iss.edgp.workflow.management.utility.WorkflowNotificationService;
 
 @RequiredArgsConstructor
 @Service
@@ -21,6 +25,7 @@ public class ProcessStatusObserverScheduler {
 	private final WorkflowService workflowService;
 	private final ProcessStatusObserverService processStatusObserverService;
 	private final DynamicDynamoService dynamoService;
+	private final WorkflowNotificationService workflowNotificationService;
 	
 	@Value("${aws.dynamodb.table.master.data.header}")
 	private String masterDataHeaderTableName;
@@ -38,14 +43,15 @@ public class ProcessStatusObserverScheduler {
 					&& dynamoService.tableExists(masterDataTaskTrackerTableName.trim())) {
 
 				// 1) Get the current PROCESSING file
-				String fileId = processStatusObserverService.fetchOldestIdByProcessStage(FileProcessStage.PROCESSING);
-
-				if (fileId == null || fileId.isEmpty()) {
+                HashMap<String,String> fileInfo = processStatusObserverService.fetchOldestIdByProcessStage(FileProcessStage.PROCESSING);
+                 
+				if (fileInfo == null || fileInfo.isEmpty()) {
 					logger.info("No processing files found.");
 					return;
 
 				} else {
-
+					String fileId=fileInfo.get("id").trim();
+	                
 					boolean isProcessed = workflowService.isAllDataProcessed(fileId);
 					if (isProcessed) {
 						String fileStatus = processStatusObserverService.getAllStatusForFile(fileId);
@@ -53,12 +59,18 @@ public class ProcessStatusObserverScheduler {
 						// (2) update file status and file stage as complete
 						processStatusObserverService.updateFileStageAndStatus(fileId, FileProcessStage.COMPLETE,
 								fileStatus);
+						
+						//(3) Send notification email
+						 
+						workflowNotificationService.sendWorkflowCsv(fileInfo);
 
 					}
 				}
+                
 			}else {
 				logger.info("No data found to process");
 			}
+			
 		}
 
 		catch (Exception e) {

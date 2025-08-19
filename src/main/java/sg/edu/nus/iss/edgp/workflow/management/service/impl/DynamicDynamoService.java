@@ -1,11 +1,17 @@
 package sg.edu.nus.iss.edgp.workflow.management.service.impl;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.PrintWriter;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -210,13 +216,13 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 	}
 
 	@Override
-	public Map<String, Object> retrieveDataList(String tableName, String fileId,
-			SearchRequest searchRequest, String userOrgId) {
+	public Map<String, Object> retrieveDataList(String tableName, String fileId, SearchRequest searchRequest,
+			String userOrgId) {
 
 		try {
 			Map<String, AttributeValue> expressionValues = new HashMap<>();
 			List<String> filterConditions = new ArrayList<>();
-			
+
 			filterConditions.add("organization_id = :organization_id");
 			expressionValues.put(":organization_id", AttributeValue.builder().s(userOrgId).build());
 
@@ -287,4 +293,91 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 			throw new DynamicDynamoServiceException("An error occurred while retrieving data list", ex);
 		}
 	}
+
+	@Override
+	public File exportToCsv(String tableName, HashMap<String,String> fileInfo) {
+
+		File tempFile = null;
+		try {
+			if (fileInfo == null || fileInfo.isEmpty()) {
+				throw new IllegalArgumentException("File must not be null or empty.");
+			}
+			String fileId=fileInfo.get("id").trim();
+            String fileName = fileInfo.get("name").trim();
+
+			Map<String, AttributeValue> expressionValues = new HashMap<>();
+			expressionValues.put(":file_id", AttributeValue.builder().s(fileId).build());
+
+			ScanRequest scanRequest = ScanRequest.builder().tableName(tableName).filterExpression("file_id = :file_id")
+					.expressionAttributeValues(expressionValues).build();
+
+			ScanResponse response = dynamoDbClient.scan(scanRequest);
+			List<Map<String, AttributeValue>> items = response.items();
+
+			if (items == null || items.isEmpty()) {
+				throw new IllegalStateException("No data found to export.");
+			}
+
+			tempFile = Files.createTempFile(fileName+"-result-", ".csv").toFile();
+
+			try (PrintWriter writer = new PrintWriter(new FileWriter(tempFile))) {
+				// Write headers
+				Set<String> headers = items.get(0).keySet();
+				
+				writer.println(String.join(",", headers));
+
+				// Write rows
+				for (Map<String, AttributeValue> item : items) {
+					List<String> row = headers.stream().map(h -> {
+						AttributeValue val = item.get(h);
+						if (val == null)
+							return "";
+						if (val.s() != null)
+							return val.s().replace(",", " ");
+						if (val.n() != null)
+							return val.n();
+						if (val.bool() != null)
+							return val.bool().toString();
+						return "";
+					}).collect(Collectors.toList());
+					writer.println(String.join(",", row));
+				}
+			}
+		} catch (Exception ex) {
+			logger.error("An error occurred while exporting data list.... {}", ex);
+			throw new DynamicDynamoServiceException("An error occurred while exporting data list", ex);
+		}
+		return tempFile;
+	}
+
+	@Override
+	public String getUploadUserByFileId(String tableName, String id) {
+		try {
+			if (id == null || id.trim().isEmpty()) {
+				throw new DynamicDynamoServiceException("File ID is empty while retrieving uploaded user.");
+			}
+
+			Map<String, AttributeValue> expressionValues = new HashMap<>();
+			expressionValues.put(":id", AttributeValue.builder().s(id).build());
+
+			ScanRequest scanRequest = ScanRequest.builder().tableName(tableName).filterExpression("id = :id")
+					.expressionAttributeValues(expressionValues).build();
+
+			List<Map<String, AttributeValue>> results = dynamoDbClient.scan(scanRequest).items();
+
+			if (results.isEmpty()) {
+				return null;
+			}
+
+			Map<String, AttributeValue> item = results.get(0);
+
+			AttributeValue uploadedByAttr = item.get("uploaded_by");
+			return (uploadedByAttr != null) ? uploadedByAttr.s() : null;
+
+		} catch (Exception ex) {
+			logger.error("An error occurred while retrieving data by file ID: {}", ex.getMessage(), ex);
+			throw new DynamicDynamoServiceException("An error occurred while retrieving data by file ID", ex);
+		}
+	}
+
 }
