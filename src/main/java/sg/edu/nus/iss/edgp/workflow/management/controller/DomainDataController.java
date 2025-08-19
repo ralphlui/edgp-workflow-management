@@ -81,13 +81,13 @@ public class DomainDataController {
 			}
 
 			if (searchRequest.getPage() == null) {
-				resultMap = domainDataService.retrieveDomainDataList(domainName, userOrgId);
-				logger.info("all data list size {}", resultMap.size());
+				resultMap = domainDataService.retrieveAllDomainDataList(domainName, userOrgId);
+				logger.info("all domain data list size {}", resultMap.size());
 			} else {
 				Pageable pageable = PageRequest.of(searchRequest.getPage() - 1, searchRequest.getSize(),
 						Sort.by("updated_date").ascending());
-//				 resultMap = policyService.retrievePaginatedPolicyList(pageable, searchRequest, userOrgId);
-//				 logger.info("all paginated policy list size {}", resultMap.size());
+				resultMap = domainDataService.retrievePaginatedDomainDataList(domainName, userOrgId, pageable);
+				logger.info("paginated domain data list size {}", resultMap.size());
 			}
 
 			Map.Entry<Long, List<Map<String, Object>>> firstEntry = resultMap.entrySet().iterator().next();

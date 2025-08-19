@@ -20,6 +20,9 @@ import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -157,8 +160,44 @@ public class DynamicSQLRepository {
 			throw new IllegalArgumentException("Table not allowed: " + tableName);
 		}
 
-		String sql = "SELECT * FROM `" + tableName.toLowerCase() + "`";
+		String sql = "SELECT * FROM " + backtick(tableName);
 		return jdbcTemplate.queryForList(sql);
+	}
+	
+	public Page<Map<String, Object>> findPaginatedDataList(String tableName, Pageable pageable) {
+	    if (tableName == null || tableName.isBlank()) {
+	        throw new IllegalArgumentException("Table name is required");
+	    }
+
+	    StringBuilder dataSql = new StringBuilder("SELECT * FROM " + backtick(tableName));
+
+	    Set<String> ALLOWED_SORT_COLUMNS = Set.of("id", "created_date", "updated_date");
+	    if (pageable.getSort().isSorted()) {
+	        String orderBy = pageable.getSort().stream()
+	            .filter(o -> ALLOWED_SORT_COLUMNS.contains(o.getProperty()))
+	            .map(o -> backtick(o.getProperty()) + (o.isAscending() ? " ASC" : " DESC"))
+	            .collect(java.util.stream.Collectors.joining(", "));
+	        if (!orderBy.isEmpty()) dataSql.append(" ORDER BY ").append(orderBy);
+	    } else {
+	        dataSql.append(" ORDER BY ").append(backtick("id"));
+	    }
+	    dataSql.append(" LIMIT ? OFFSET ?");
+
+	    // 1) data page
+	    List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+	        dataSql.toString(), pageable.getPageSize(), pageable.getOffset()
+	    );
+
+	    // 2) total count
+	    String countSql = "SELECT COUNT(*) FROM " + backtick(tableName);
+	    long total = jdbcTemplate.queryForObject(countSql, Long.class);
+
+	    return new PageImpl<>(rows, pageable, total);
+	}
+
+
+	private String backtick(String ident) {
+	    return "`" + ident.replace("`", "``") + "`";
 	}
 
 }
