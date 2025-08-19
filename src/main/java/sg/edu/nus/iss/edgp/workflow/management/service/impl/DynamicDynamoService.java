@@ -103,6 +103,7 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 				return null;
 			}
 
+			logger.info("Successfully retrieve work flow status data by workflow id");
 			return results.get(0);
 
 		} catch (Exception ex) {
@@ -134,6 +135,7 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 				return null;
 			}
 
+			logger.info("Successfully retrieve file data by file id.");
 			return results.get(0);
 
 		} catch (Exception ex) {
@@ -311,6 +313,7 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 					Math.min(toIndex, allFilteredItems.size()));
 
 			result.put("items", paginatedItems);
+			logger.info("Successfully retrieve work flow status data list.");
 			return result;
 
 		} catch (Exception ex) {

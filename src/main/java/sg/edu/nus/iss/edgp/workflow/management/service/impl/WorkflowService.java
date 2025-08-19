@@ -62,6 +62,7 @@ public class WorkflowService implements IWorkflowService {
 						"Workflow status update aborted: existing workflow status data not found.");
 
 			} else {
+				logger.info("Successfully retrieve work flow data by workflow id");
 				WorkflowStatus workflowStatus = new WorkflowStatus();
 				Optional.ofNullable(status).filter(s -> !s.isBlank()).ifPresent(s -> {
 					workflowStatus.setFinalStatus(s);
@@ -75,6 +76,7 @@ public class WorkflowService implements IWorkflowService {
 				dynamoService.updateWorkflowStatus(masterDataTaskTrackerTableName.trim(), workflowStatus);
 				String domainTableName = (String) rawData.get("domain_name");
 				insetCleanMasterData(status, domainTableName, workflowStatusData);
+				logger.info("Successfully inserted clean data to master data db");
 
 			}
 		} catch (Exception ex) {
@@ -114,6 +116,8 @@ public class WorkflowService implements IWorkflowService {
 			Optional<String> fileNameOpt = Optional.empty();
 
 			if (fileId != null && !fileId.isBlank()) {
+				
+				logger.info("Successfully retrieving file data by file id from header table");
 				Map<String, AttributeValue> fileRecord = dynamoService
 						.getFileDataByFileId(masterDataHeaderTableName.trim(), fileId);
 
@@ -141,6 +145,7 @@ public class WorkflowService implements IWorkflowService {
 			totalCountMap.put("successRecords", successRecords);
 			totalCountMap.put("failedRecords", failedRecords);
 			dynamicList.add(totalCountMap);
+			logger.info("Successfully retrieving work flow data list");
 			return dynamicList;
 		} catch (Exception ex) {
 			logger.error("An error occurred while retireving data list.... {}", ex);
