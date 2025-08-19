@@ -156,13 +156,9 @@ public class DynamicSQLRepository {
 		if (tableName == null || tableName.isEmpty()) {
 			throw new IllegalArgumentException("Table not allowed: " + tableName);
 		}
-		
+
 		String sql = "SELECT * FROM `" + tableName.toLowerCase() + "`";
 		return jdbcTemplate.queryForList(sql);
-	}
-
-	private String quoteIdent(String ident) {
-		return "\"" + ident.replace("\"", "\"\"") + "\""; 
 	}
 
 }
