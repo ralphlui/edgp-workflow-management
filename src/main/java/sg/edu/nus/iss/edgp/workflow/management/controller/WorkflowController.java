@@ -1,6 +1,6 @@
 package sg.edu.nus.iss.edgp.workflow.management.controller;
 
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -49,7 +49,7 @@ public class WorkflowController {
 
 	@GetMapping(value = "", produces = "application/json")
 	@PreAuthorize("hasAuthority('SCOPE_manage:mdm') or hasAuthority('SCOPE_view:mdm')")
-	public ResponseEntity<APIResponse<List<Map<String, Object>>>> retrievePolicyList(
+	public ResponseEntity<APIResponse<Map<String, Object>>> retrievePolicyList(
 			@RequestHeader("Authorization") String authorizationHeader, @RequestHeader("X-FileId") String fileId,
 			@Valid @ModelAttribute SearchRequest searchRequest) {
 
@@ -81,19 +81,28 @@ public class WorkflowController {
 			if (resultMap == null || resultMap.isEmpty()) {
 				message = "No data List.";
 				logger.info(message);
+				
+				Map<String, Object> finalDataMap = new HashMap<>();
 				auditService.logAudit(auditDTO, 200, message, authorizationHeader);
-				return ResponseEntity.ok(APIResponse.successWithEmptyData(Collections.emptyList(), message));
+				return ResponseEntity.ok(APIResponse.successWithEmptyData(finalDataMap, message));
 			}
 
 			int totalRecord = (int) resultMap.get(resultMap.size() - 1).get("totalCount");
-			logger.info("totalRecord: {}", totalRecord);
+			int successRecords = (int) resultMap.get(resultMap.size() - 1).get("successRecords");
+			int failedRecords = (int) resultMap.get(resultMap.size() - 1).get("failedRecords");
+	     	logger.info("totalRecord: {}", totalRecord);
 			resultMap.remove(resultMap.size() - 1);
 
 			message = resultMap.isEmpty() ? "No data List" : "Successfully retrieved all data list.";
 			totalRecord = resultMap.isEmpty() ? 0 : totalRecord;
 			logger.info(message);
 			auditService.logAudit(auditDTO, 200, message, authorizationHeader);
-			return ResponseEntity.status(HttpStatus.OK).body(APIResponse.success(resultMap, message, totalRecord));
+			
+			Map<String, Object> finalDataMap = new HashMap<>();
+			finalDataMap.put("successRecords", successRecords);
+			finalDataMap.put("failedRecords", failedRecords);
+			finalDataMap.put("dataRecords", resultMap);
+			return ResponseEntity.status(HttpStatus.OK).body(APIResponse.success(finalDataMap, message, totalRecord));
 
 		} catch (Exception ex) {
 			message = ex instanceof WorkflowServiceException ? ex.getMessage() : genericErrorMessage;
