@@ -137,12 +137,8 @@ public class WorkflowService implements IWorkflowService {
 					failedRecords += 1;
 				}
 			}
-//			final Map<String, Object> successCountMap = new HashMap<>(Map.of("successRecords", successRecords));
-//			final Map<String, Object> failedCountMap = new HashMap<>(Map.of("failedRecords", failedRecords));
 			totalCountMap.put("successRecords", successRecords);
 			totalCountMap.put("failedRecords", failedRecords);
-//			dynamicList.add(successCountMap);
-//			dynamicList.add(failedCountMap);
 			dynamicList.add(totalCountMap);
 			return dynamicList;
 		} catch (Exception ex) {
