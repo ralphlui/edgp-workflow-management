@@ -121,12 +121,28 @@ public class WorkflowService implements IWorkflowService {
 			}
 
 			List<Map<String, Object>> dynamicList = new ArrayList<>();
+			int successRecords = 0;
+			int failedRecords = 0;
+			
 			for (Map<String, AttributeValue> item : items) {
 
 				Map<String, Object> dynamicItem = dynamoItemToJavaMap(item);
 				fileNameOpt.ifPresent(fn -> dynamicItem.put("fileName", fn));
 				dynamicList.add(dynamicItem);
+				
+				String status = dynamicItem.get("final_status").toString();
+				if (status != null && status.toUpperCase().equals(Status.SUCCESS.toString())) {
+					successRecords += 1;
+				} else if (status != null && status.toUpperCase().equals(Status.FAIL.toString())) {
+					failedRecords += 1;
+				}
 			}
+//			final Map<String, Object> successCountMap = new HashMap<>(Map.of("successRecords", successRecords));
+//			final Map<String, Object> failedCountMap = new HashMap<>(Map.of("failedRecords", failedRecords));
+			totalCountMap.put("successRecords", successRecords);
+			totalCountMap.put("failedRecords", failedRecords);
+//			dynamicList.add(successCountMap);
+//			dynamicList.add(failedCountMap);
 			dynamicList.add(totalCountMap);
 			return dynamicList;
 		} catch (Exception ex) {
