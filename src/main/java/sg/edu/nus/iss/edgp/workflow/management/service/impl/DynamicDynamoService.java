@@ -260,7 +260,7 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 
 			if (searchRequest.getStatus() != null && !searchRequest.getStatus().isEmpty()) {
 				filterConditions.add("final_status = :final_status");
-				expressionValues.put(":final_status", AttributeValue.builder().s(searchRequest.getStatus()).build());
+				expressionValues.put(":final_status", AttributeValue.builder().s(searchRequest.getStatus().toLowerCase()).build());
 			}
 
 			Map<String, AttributeValue> lastEvaluatedKey = null;
