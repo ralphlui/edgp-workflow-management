@@ -1,4 +1,4 @@
-package sg.edu.nus.iss.edgp.workflow.management.utility;
+package sg.edu.nus.iss.edgp.workflow.management.service.impl;
 
 import org.json.simple.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
@@ -6,13 +6,15 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import sg.edu.nus.iss.edgp.workflow.management.api.connector.NotificationAPICall;
-import sg.edu.nus.iss.edgp.workflow.management.service.impl.DynamicDynamoService;
+import sg.edu.nus.iss.edgp.workflow.management.service.IDataIngestionNotifierService;
+import sg.edu.nus.iss.edgp.workflow.management.utility.JSONReader;
+
 import java.io.File;
 import java.util.HashMap;
 
 @RequiredArgsConstructor
 @Service
-public class WorkflowNotificationService {
+public class DataIngestionNotifierService implements IDataIngestionNotifierService{
 
 	private final DynamicDynamoService dynamoService;
 	private final NotificationAPICall notificationAPICall;
@@ -24,7 +26,8 @@ public class WorkflowNotificationService {
 	@Value("${aws.dynamodb.table.master.data.header}")
 	private String masterDataHeaderTableName;
 
-	public void sendWorkflowCsv(HashMap<String,String> fileInfo) {
+	@Override
+	public void sendDataIngestionResult(HashMap<String,String> fileInfo) {
 		try {
 			String fileId=fileInfo.get("id").trim();
             
@@ -36,7 +39,7 @@ public class WorkflowNotificationService {
 					if (authorizationHeader != null && !authorizationHeader.isEmpty()) {
 						JSONObject response = notificationAPICall.sendEmailWithAttachment(uploadedUser,
 								"Data Ingestion Result",
-								"Your uploaded file has successfully ingested. Please find attached the result.", csvFile,
+								"Hi <br> Your uploaded file has successfully ingested. Please find attached the data ingestion result.", csvFile,
 								authorizationHeader);
 
 						if (!Boolean.TRUE.equals(response.get("success"))) {

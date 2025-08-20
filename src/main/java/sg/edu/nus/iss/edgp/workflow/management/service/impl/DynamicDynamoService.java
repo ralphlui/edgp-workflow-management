@@ -5,11 +5,15 @@ import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -295,60 +299,185 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 	}
 
 	@Override
-	public File exportToCsv(String tableName, HashMap<String,String> fileInfo) {
+	public File exportToCsv(String tableName, HashMap<String, String> fileInfo) {
+	    File tempFile = null;
+	    try {
+	        if (fileInfo == null || fileInfo.isEmpty()) {
+	            throw new IllegalArgumentException("File info must not be null or empty.");
+	        }
+	        final String fileId = Objects.requireNonNull(fileInfo.get("id"), "id is required").trim();
+	        final String fileName = Objects.requireNonNull(fileInfo.get("name"), "name is required").trim();
 
-		File tempFile = null;
-		try {
-			if (fileInfo == null || fileInfo.isEmpty()) {
-				throw new IllegalArgumentException("File must not be null or empty.");
-			}
-			String fileId=fileInfo.get("id").trim();
-            String fileName = fileInfo.get("name").trim();
+	        Map<String, AttributeValue> expressionValues = new HashMap<>();
+	        expressionValues.put(":file_id", AttributeValue.builder().s(fileId).build());
 
-			Map<String, AttributeValue> expressionValues = new HashMap<>();
-			expressionValues.put(":file_id", AttributeValue.builder().s(fileId).build());
+	        ScanRequest scanRequest = ScanRequest.builder()
+	                .tableName(tableName)
+	                .filterExpression("file_id = :file_id")
+	                .expressionAttributeValues(expressionValues)
+	                .build();
 
-			ScanRequest scanRequest = ScanRequest.builder().tableName(tableName).filterExpression("file_id = :file_id")
-					.expressionAttributeValues(expressionValues).build();
+	        ScanResponse response = dynamoDbClient.scan(scanRequest);
+	        List<Map<String, AttributeValue>> items = response.items();
 
-			ScanResponse response = dynamoDbClient.scan(scanRequest);
-			List<Map<String, AttributeValue>> items = response.items();
+	        if (items == null || items.isEmpty()) {
+	            throw new IllegalStateException("No data found to export.");
+	        }
 
-			if (items == null || items.isEmpty()) {
-				throw new IllegalStateException("No data found to export.");
-			}
+	        Set<String> excludedFields = new HashSet<>(Arrays.asList(
+	            "id","domain_name","file_id","organization_id",
+	            "policy_id","uploaded_by","created_date",
+	            "failed_validations",  
+	            "final_status" 
+	        ));
 
-			tempFile = Files.createTempFile(fileName+"-result-", ".csv").toFile();
+	       
+	        Set<String> headers = new LinkedHashSet<>(items.get(0).keySet());
+	        for (Map<String, AttributeValue> it : items) headers.addAll(it.keySet());
+	        headers.removeAll(excludedFields);
 
-			try (PrintWriter writer = new PrintWriter(new FileWriter(tempFile))) {
-				// Write headers
-				Set<String> headers = items.get(0).keySet();
-				
-				writer.println(String.join(",", headers));
+	        headers.add("failed_rule_names");
+	        headers.add("failed_column_names");
+	        headers.add("failed_error_messages");
+	        headers.add("failed_statuses");
+	        headers.add("final_status");
 
-				// Write rows
-				for (Map<String, AttributeValue> item : items) {
-					List<String> row = headers.stream().map(h -> {
-						AttributeValue val = item.get(h);
-						if (val == null)
-							return "";
-						if (val.s() != null)
-							return val.s().replace(",", " ");
-						if (val.n() != null)
-							return val.n();
-						if (val.bool() != null)
-							return val.bool().toString();
-						return "";
-					}).collect(Collectors.toList());
-					writer.println(String.join(",", row));
-				}
-			}
-		} catch (Exception ex) {
-			logger.error("An error occurred while exporting data list.... {}", ex);
-			throw new DynamicDynamoServiceException("An error occurred while exporting data list", ex);
-		}
-		return tempFile;
+	        tempFile = Files.createTempFile(fileName.replace(".csv", "") + "-result-", ".csv").toFile();
+
+	        try (PrintWriter writer = new PrintWriter(new FileWriter(tempFile))) {
+	            writer.println(String.join(",", headers));
+
+	            for (Map<String, AttributeValue> item : items) {
+	                
+	                List<Map<String, AttributeValue>> failedList = new ArrayList<>();
+
+	                AttributeValue topFv = item.get("failed_validations");
+	                if (topFv != null && topFv.hasL()) {
+	                    for (AttributeValue av : topFv.l()) if (av != null && av.hasM()) failedList.add(av.m());
+	                } else {
+	                    AttributeValue ruleStatus = item.get("rule_status");
+	                    if (ruleStatus != null && ruleStatus.hasM()) {
+	                        AttributeValue nested = ruleStatus.m().get("failed_validations");
+	                        if (nested != null && nested.hasL()) {
+	                            for (AttributeValue av : nested.l()) if (av != null && av.hasM()) failedList.add(av.m());
+	                        }
+	                    }
+	                }
+
+	                List<String> ruleNames     = new ArrayList<>();
+	                List<String> columnNames   = new ArrayList<>();
+	                List<String> errorMessages = new ArrayList<>();
+	                List<String> statuses      = new ArrayList<>();
+
+	                for (Map<String, AttributeValue> m : failedList) {
+	                    ruleNames.add(safeS(m.get("rule_name")));
+	                    columnNames.add(safeS(m.get("column_name")));
+	                    errorMessages.add(safeS(m.get("error_message")));
+	                    statuses.add(safeS(m.get("status")));
+	                }
+
+	                List<String> row = new ArrayList<>(headers.size());
+	                for (String h : headers) {
+	                    switch (h) {
+	                        case "failed_rule_names":
+	                            row.add(csvEscape(String.join(";", ruleNames)));
+	                            break;
+	                        case "failed_column_names":
+	                            row.add(csvEscape(String.join(";", columnNames)));
+	                            break;
+	                        case "failed_error_messages":
+	                            row.add(csvEscape(String.join(";", errorMessages)));
+	                            break;
+	                        case "failed_statuses":
+	                            row.add(csvEscape(String.join(";", statuses)));
+	                            break;
+	                        case "final_status":
+	                           
+	                            row.add(csvEscape(attrToFlatString(item.get("final_status"))));
+	                            break;
+	                        default:
+	                            row.add(csvEscape(attrToFlatString(item.get(h))));
+	                    }
+	                }
+
+	                writer.println(String.join(",", row));
+	            }
+	        }
+
+	        return tempFile;
+
+	    } catch (Exception ex) {
+	        logger.error("An error occurred while exporting data list.", ex);
+	        throw new DynamicDynamoServiceException("An error occurred while exporting data list", ex);
+	    }
 	}
+
+
+
+	private String safeS(AttributeValue v) {
+	    return (v != null && v.s() != null) ? v.s() : "";
+	}
+
+	private String attrToFlatString(AttributeValue val) {
+	    if (val == null) return "";
+	    if (val.s() != null) return val.s();
+	    if (val.n() != null) return val.n();
+	    if (val.bool() != null) return String.valueOf(val.bool());
+	    if (val.hasSs()) return String.join(";", val.ss());
+	    if (val.hasNs()) return String.join(";", val.ns());
+	   
+	    if (val.hasL()) return "[" + val.l().stream().map(this::toJsonValue).collect(java.util.stream.Collectors.joining(",")) + "]";
+	    if (val.hasM()) {
+	        String body = val.m().entrySet().stream()
+	                .map(e -> "\"" + jsonEscape(e.getKey()) + "\":" + toJsonValue(e.getValue()))
+	                .collect(java.util.stream.Collectors.joining(","));
+	        return "{" + body + "}";
+	    }
+	    return "";
+	}
+
+	private String toJsonValue(AttributeValue v) {
+	    if (v == null) return "null";
+	    if (v.s() != null) return "\"" + jsonEscape(v.s()) + "\"";
+	    if (v.n() != null) return v.n();
+	    if (v.bool() != null) return String.valueOf(v.bool());
+	    if (v.hasSs()) return v.ss().stream().map(s -> "\"" + jsonEscape(s) + "\"").collect(java.util.stream.Collectors.joining(",", "[", "]"));
+	    if (v.hasNs()) return v.ns().stream().collect(java.util.stream.Collectors.joining(",", "[", "]"));
+	    if (v.hasL()) return v.l().stream().map(this::toJsonValue).collect(java.util.stream.Collectors.joining(",", "[", "]"));
+	    if (v.hasM()) {
+	        String body = v.m().entrySet().stream()
+	                .map(e -> "\"" + jsonEscape(e.getKey()) + "\":" + toJsonValue(e.getValue()))
+	                .collect(java.util.stream.Collectors.joining(","));
+	        return "{" + body + "}";
+	    }
+	    return "null";
+	}
+
+	private String csvEscape(String s) {
+	    if (s == null) return "";
+	    boolean needsQuotes = s.contains(",") || s.contains("\"") || s.contains("\n") || s.contains("\r");
+	    String cleaned = s.replace("\"", "\"\"").replace("\r", " ").replace("\n", " ");
+	    return needsQuotes ? "\"" + cleaned + "\"" : cleaned;
+	}
+
+	private String jsonEscape(String s) {
+	    if (s == null) return "";
+	    StringBuilder sb = new StringBuilder(s.length() + 8);
+	    for (char c : s.toCharArray()) {
+	        switch (c) {
+	            case '\"': sb.append("\\\""); break;
+	            case '\\': sb.append("\\\\"); break;
+	            case '\b': sb.append("\\b"); break;
+	            case '\f': sb.append("\\f"); break;
+	            case '\n': sb.append("\\n"); break;
+	            case '\r': sb.append("\\r"); break;
+	            case '\t': sb.append("\\t"); break;
+	            default: if (c < 0x20) sb.append(String.format("\\u%04x", (int)c)); else sb.append(c);
+	        }
+	    }
+	    return sb.toString();
+	}
+
 
 	@Override
 	public String getUploadUserByFileId(String tableName, String id) {

@@ -11,10 +11,7 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import sg.edu.nus.iss.edgp.workflow.management.enums.FileProcessStage;
-import sg.edu.nus.iss.edgp.workflow.management.service.impl.DynamicDynamoService;
-import sg.edu.nus.iss.edgp.workflow.management.service.impl.ProcessStatusObserverService;
-import sg.edu.nus.iss.edgp.workflow.management.service.impl.WorkflowService;
-import sg.edu.nus.iss.edgp.workflow.management.utility.WorkflowNotificationService;
+import sg.edu.nus.iss.edgp.workflow.management.service.impl.*;
 
 @RequiredArgsConstructor
 @Service
@@ -25,7 +22,7 @@ public class ProcessStatusObserverScheduler {
 	private final WorkflowService workflowService;
 	private final ProcessStatusObserverService processStatusObserverService;
 	private final DynamicDynamoService dynamoService;
-	private final WorkflowNotificationService workflowNotificationService;
+	private final DataIngestionNotifierService workflowNotificationService;
 	
 	@Value("${aws.dynamodb.table.master.data.header}")
 	private String masterDataHeaderTableName;
@@ -45,6 +42,7 @@ public class ProcessStatusObserverScheduler {
 				// 1) Get the current PROCESSING file
                 HashMap<String,String> fileInfo = processStatusObserverService.fetchOldestIdByProcessStage(FileProcessStage.PROCESSING);
                  
+                
 				if (fileInfo == null || fileInfo.isEmpty()) {
 					logger.info("No processing files found.");
 					return;
@@ -62,7 +60,7 @@ public class ProcessStatusObserverScheduler {
 						
 						//(3) Send notification email
 						 
-						workflowNotificationService.sendWorkflowCsv(fileInfo);
+						workflowNotificationService.sendDataIngestionResult(fileInfo);
 
 					}
 				}
