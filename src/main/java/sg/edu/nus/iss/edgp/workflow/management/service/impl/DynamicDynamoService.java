@@ -109,6 +109,7 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 				return null;
 			}
 
+			logger.info("Successfully retrieve work flow status data by workflow id");
 			return results.get(0);
 
 		} catch (Exception ex) {
@@ -140,6 +141,7 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 				return null;
 			}
 
+			logger.info("Successfully retrieve file data by file id.");
 			return results.get(0);
 
 		} catch (Exception ex) {
@@ -264,7 +266,7 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 
 			if (searchRequest.getStatus() != null && !searchRequest.getStatus().isEmpty()) {
 				filterConditions.add("final_status = :final_status");
-				expressionValues.put(":final_status", AttributeValue.builder().s(searchRequest.getStatus()).build());
+				expressionValues.put(":final_status", AttributeValue.builder().s(searchRequest.getStatus().toLowerCase()).build());
 			}
 
 			Map<String, AttributeValue> lastEvaluatedKey = null;
@@ -317,6 +319,7 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 					Math.min(toIndex, allFilteredItems.size()));
 
 			result.put("items", paginatedItems);
+			logger.info("Successfully retrieve work flow status data list.");
 			return result;
 
 		} catch (Exception ex) {

@@ -19,11 +19,11 @@ import sg.edu.nus.iss.edgp.workflow.management.utility.JSONReader;
 
 @Service
 @RequiredArgsConstructor
-public class WorkflowValidationStrategy implements IAPIHelperValidationStrategy<String> {
+public class ValidationStrategy implements IAPIHelperValidationStrategy<String> {
 	
 	private final JSONReader jsonReader;
 	private final OrganizationAPICall orgAPICall;
-	private static final Logger logger = LoggerFactory.getLogger(WorkflowValidationStrategy.class);
+	private static final Logger logger = LoggerFactory.getLogger(ValidationStrategy.class);
 	
 	public ValidationResult isUserOrganizationActive(String userOrgId, String authHeader) {
 	    return validateActive(userOrgId, authHeader);
@@ -56,6 +56,17 @@ public class WorkflowValidationStrategy implements IAPIHelperValidationStrategy<
 	    validationResult.setValid(true);
 	    return validationResult;
 	}
+	
+	
+	public ValidationResult validateDomainAndOrgAccess(String domainName, String userOrgId, String authHeader) {
+		
+		 if (isBlank(domainName)) {
+		        return buildInvalidResult("Domain name is missing");
+		    }
+		
+	    return validateActive(userOrgId, authHeader);
+	}
+	
 
 	/** Tiny utility (avoids external deps). */
 	private boolean isBlank(String s) {

@@ -15,5 +15,7 @@ public class SearchRequest {
 	private Integer size;
 	
 	private String status;
+	
+	private String domainName;
 
 }

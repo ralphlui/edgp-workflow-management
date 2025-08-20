@@ -29,7 +29,7 @@ import sg.edu.nus.iss.edgp.workflow.management.exception.WorkflowServiceExceptio
 import sg.edu.nus.iss.edgp.workflow.management.jwt.JWTService;
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.AuditService;
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.WorkflowService;
-import sg.edu.nus.iss.edgp.workflow.management.strategy.impl.WorkflowValidationStrategy;
+import sg.edu.nus.iss.edgp.workflow.management.strategy.impl.ValidationStrategy;
 
 @RestController
 @RequiredArgsConstructor
@@ -41,7 +41,7 @@ public class WorkflowController {
 	private final WorkflowService workflowService;
 	private final AuditService auditService;
 	private final JWTService jwtService;
-	private final WorkflowValidationStrategy workflowValidationStrategy;
+	private final ValidationStrategy validationStrategy;
 	private String genericErrorMessage = "An error occurred while processing your request. Please try again later.";
 
 	@Value("${audit.activity.type.prefix}")
@@ -66,7 +66,7 @@ public class WorkflowController {
 		try {
 
 			String userOrgId = jwtService.extractOrgIdFromToken(jwtToken);
-			ValidationResult validationResult = workflowValidationStrategy.isUserOrganizationActive(userOrgId,
+			ValidationResult validationResult = validationStrategy.isUserOrganizationActive(userOrgId,
 					authorizationHeader);
 
 			if (!validationResult.isValid()) {
@@ -140,7 +140,7 @@ public class WorkflowController {
 			String organizationId = (String) dataRecord.get("organization_id");
 
 			String userOrgId = jwtService.extractOrgIdFromToken(jwtToken);
-			ValidationResult validationResult = workflowValidationStrategy
+			ValidationResult validationResult = validationStrategy
 					.isUserOrganizationValidAndActive(organizationId, userOrgId, authorizationHeader);
 
 			if (!validationResult.isValid()) {
