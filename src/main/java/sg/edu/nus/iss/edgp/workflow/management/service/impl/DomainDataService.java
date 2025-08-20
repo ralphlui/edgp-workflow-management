@@ -13,14 +13,16 @@ import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
 import sg.edu.nus.iss.edgp.workflow.management.exception.DomainDataServiceException;
 import sg.edu.nus.iss.edgp.workflow.management.repository.DomainDataRepository;
+import sg.edu.nus.iss.edgp.workflow.management.service.IDomainDataService;
 
 @Service
 @RequiredArgsConstructor
-public class DomainDataService {
+public class DomainDataService implements IDomainDataService {
 
 	private static final Logger logger = LoggerFactory.getLogger(DomainDataService.class);
 	private final DomainDataRepository domainDataRepository;
 
+	@Override
 	public Map<Long, List<Map<String, Object>>> retrieveAllDomainDataList(String domainName, String userOrgId,
 			String fileId) {
 		try {
@@ -40,6 +42,7 @@ public class DomainDataService {
 		}
 	}
 
+	@Override
 	public Map<Long, List<Map<String, Object>>> retrievePaginatedDomainDataList(String domainName, String userOrgId,
 			String fileId, Pageable pageable) {
 		try {
@@ -59,6 +62,7 @@ public class DomainDataService {
 		}
 	}
 
+	@Override
 	public Map<String, Object> retrieveDetailDomainDataRecordById(String domainName, String id) {
 
 		try {
