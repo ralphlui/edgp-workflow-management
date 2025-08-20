@@ -32,6 +32,7 @@ import sg.edu.nus.iss.edgp.workflow.management.jwt.JWTService;
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.AuditService;
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.DomainDataService;
 import sg.edu.nus.iss.edgp.workflow.management.strategy.impl.ValidationStrategy;
+import sg.edu.nus.iss.edgp.workflow.management.utility.GeneralUtility;
 
 @RestController
 @RequiredArgsConstructor
@@ -111,6 +112,59 @@ public class DomainDataController {
 
 		} catch (Exception ex) {
 			message = ex instanceof DomainDataServiceException ? ex.getMessage() : genericErrorMessage;
+			auditService.logAudit(auditDTO, 500, message, authorizationHeader);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(APIResponse.error(message));
+		}
+	}
+
+	@GetMapping(value = "/my-domain-data", produces = "application/json")
+	@PreAuthorize("hasAuthority('SCOPE_manage:policy') or hasAuthority('SCOPE_view:policy')")
+	public ResponseEntity<APIResponse<Map<String, Object>>> getDomainDataById(
+			@RequestHeader("Authorization") String authorizationHeader, @RequestHeader("X-Id") String id,
+			@Valid @ModelAttribute SearchRequest searchRequest) {
+		logger.info("Call retrieving detail domain data record by id...");
+
+		String activityType = "Retrieve Detail Domain Data Record.";
+		String endpoint = "/api/wfm/domainData/my-domain-data";
+		activityTypePrefix = activityTypePrefix.trim() + activityType;
+		String jwtToken = authorizationHeader.substring(7);
+		String userId = Optional.ofNullable(jwtService.extractUserIdFromToken(jwtToken)).orElse("Invalid UserId");
+		AuditDTO auditDTO = auditService.createAuditDTO(userId, activityType, activityTypePrefix, endpoint,
+				HTTPVerb.GET);
+		String message = "";
+
+		try {
+
+			String domainTableName = searchRequest.getDomainName();
+			if (!GeneralUtility.hasText(id) || !GeneralUtility.hasText(domainTableName)) {
+				message = "Bad Request: Id or domain could not be blank.";
+				logger.error(message);
+				auditService.logAudit(auditDTO, 400, message, authorizationHeader);
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(APIResponse.error(message));
+			}
+
+			Map<String, Object> detailDomainDataRecord = domainDataService
+					.retrieveDetailDomainDataRecordById(domainTableName, id);
+			String userOrgId = jwtService.extractOrgIdFromToken(jwtToken);
+			String orgId = (String) detailDomainDataRecord.get("organization_id");
+			ValidationResult validationResult = validationStrategy.isUserOrganizationValidAndActive(orgId, userOrgId,
+					authorizationHeader);
+
+			if (!validationResult.isValid()) {
+				message = "Unauthorized to view this domain data record.";
+				logger.info(message);
+				auditService.logAudit(auditDTO, 401, message, authorizationHeader);
+				return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(APIResponse.error(message));
+			}
+
+			message = "Requested domain data record is available.";
+			logger.info(message);
+			auditService.logAudit(auditDTO, 200, message, authorizationHeader);
+			return ResponseEntity.status(HttpStatus.OK).body(APIResponse.success(detailDomainDataRecord, message));
+
+		} catch (Exception ex) {
+			message = ex instanceof DomainDataServiceException ? ex.getMessage() : genericErrorMessage;
+			logger.error(message);
 			auditService.logAudit(auditDTO, 500, message, authorizationHeader);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(APIResponse.error(message));
 		}

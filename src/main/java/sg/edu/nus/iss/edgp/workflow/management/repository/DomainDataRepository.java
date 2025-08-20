@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -19,12 +21,14 @@ public class DomainDataRepository {
 
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
-	
+	private static final Logger logger = LoggerFactory.getLogger(DomainDataRepository.class);
+
 	public List<Map<String, Object>> findAllDomainDataList(String tableName, String userOrgId, String fileId) {
 		if (tableName == null || tableName.isBlank()) {
 			throw new IllegalArgumentException("Table name is required");
 		}
 
+		tableName = tableName.toLowerCase();
 		StringBuilder sql = new StringBuilder("SELECT * FROM ").append(backtick(tableName)).append(" WHERE ")
 				.append(backtick("organization_id")).append(" = ?");
 
@@ -36,6 +40,7 @@ public class DomainDataRepository {
 			args.add(fileId);
 		}
 
+		logger.info("retrieving all domain data list.");
 		return jdbcTemplate.queryForList(sql.toString(), args.toArray());
 	}
 
@@ -46,6 +51,7 @@ public class DomainDataRepository {
 			throw new IllegalArgumentException("Table name is required");
 		}
 
+		tableName = tableName.toLowerCase();
 		StringBuilder where = new StringBuilder().append(" WHERE ").append(backtick("organization_id")).append(" = ?");
 		List<Object> filterArgs = new ArrayList<>();
 		filterArgs.add(userOrgId);
@@ -56,6 +62,7 @@ public class DomainDataRepository {
 		}
 
 		StringBuilder dataSql = new StringBuilder("SELECT * FROM ").append(backtick(tableName)).append(where);
+		logger.info("created sql query while retrieving paginated domain data list.");
 
 		Set<String> ALLOWED_SORT_COLUMNS = Set.of("id", "created_date", "updated_date");
 		if (pageable.getSort().isSorted()) {
@@ -78,7 +85,18 @@ public class DomainDataRepository {
 		String countSql = "SELECT COUNT(*) FROM " + backtick(tableName) + where.toString();
 		long total = jdbcTemplate.queryForObject(countSql, Long.class, filterArgs.toArray());
 
+		logger.info("retrieving paginated domain data list.");
 		return new PageImpl<>(rows, pageable, total);
+	}
+
+	public Map<String, Object> retrieveDetailDomainDataRecordById(String tableName, String id) {
+
+		tableName = tableName.toLowerCase();
+
+		String sql = "SELECT * FROM " + backtick(tableName) + " WHERE " + backtick("id") + " = ? LIMIT 1";
+
+		logger.info("Retrieving detail domain data by id. table='{}', id='{}'", tableName, id);
+		return jdbcTemplate.queryForMap(sql, id); // <-- pass the parameter
 	}
 
 	private String backtick(String ident) {

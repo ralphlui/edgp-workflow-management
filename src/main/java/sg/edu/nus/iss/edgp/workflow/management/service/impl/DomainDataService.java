@@ -59,4 +59,24 @@ public class DomainDataService {
 		}
 	}
 
+	public Map<String, Object> retrieveDetailDomainDataRecordById(String domainName, String id) {
+
+		try {
+
+			Map<String, Object> domainDataRecord = domainDataRepository.retrieveDetailDomainDataRecordById(domainName,
+					id);
+
+			if (domainDataRecord == null || domainDataRecord.isEmpty()) {
+				throw new DomainDataServiceException(String.format("No detail domain record found for domain"));
+			}
+
+			logger.debug("Retrieved detail domain data record for domain='{}', id='{}'", domainName, id);
+			return domainDataRecord;
+
+		} catch (Exception ex) {
+			logger.error("Unexpected error retrieving record for domain", ex);
+			throw new DomainDataServiceException("Unexpected error retrieving domain data record by id", ex);
+		}
+	}
+
 }
