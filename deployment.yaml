@@ -29,7 +29,7 @@ spec:
                 configMapKeyRef:
                   name: my-configmap
                   key: SPRING_PROFILES_ACTIVE
-             name: NOTIFICATION_URL
+            - name: NOTIFICATION_URL
               valueFrom:
                 configMapKeyRef:
                   name: my-configmap
