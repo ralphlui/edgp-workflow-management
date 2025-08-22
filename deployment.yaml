@@ -29,6 +29,11 @@ spec:
                 configMapKeyRef:
                   name: my-configmap
                   key: SPRING_PROFILES_ACTIVE
+             name: NOTIFICATION_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: my-configmap
+                  key: NOTIFICATION_URL
             - name: AUDIT_SQS_URL
               valueFrom:
                 configMapKeyRef:
