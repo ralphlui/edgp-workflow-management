@@ -72,7 +72,7 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 		waitForTableToBecomeActive(tableName);
 	}
 
-	private void waitForTableToBecomeActive(String tableName) {
+	public void waitForTableToBecomeActive(String tableName) {
 		while (true) {
 			DescribeTableResponse response = dynamoDbClient
 					.describeTable(DescribeTableRequest.builder().tableName(tableName).build());
