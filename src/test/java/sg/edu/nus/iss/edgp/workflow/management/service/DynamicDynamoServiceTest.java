@@ -9,6 +9,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -26,6 +27,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import sg.edu.nus.iss.edgp.workflow.management.dto.WorkflowStatus;
 import sg.edu.nus.iss.edgp.workflow.management.exception.DynamicDynamoServiceException;
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.DynamicDynamoService;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
@@ -41,9 +43,12 @@ import software.amazon.awssdk.services.dynamodb.model.InternalServerErrorExcepti
 import software.amazon.awssdk.services.dynamodb.model.KeySchemaElement;
 import software.amazon.awssdk.services.dynamodb.model.ResourceInUseException;
 import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
+import software.amazon.awssdk.services.dynamodb.model.ReturnValue;
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
 import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
+import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.UpdateItemResponse;
 
 @ExtendWith(MockitoExtension.class)
 public class DynamicDynamoServiceTest {
@@ -213,5 +218,104 @@ public class DynamicDynamoServiceTest {
 				.thenThrow(DynamoDbException.builder().message("boom").build());
 
 		assertThrows(DynamicDynamoServiceException.class, () -> service.getFileDataByFileId("files", "f-123"));
+	}
+
+	private WorkflowStatus mockWs(String id, String ruleStatus, String finalStatus,
+			List<Map<String, Object>> failedValidations) {
+		WorkflowStatus ws = mock(WorkflowStatus.class);
+		when(ws.getId()).thenReturn(id);
+		when(ws.getRuleStatus()).thenReturn(ruleStatus);
+		when(ws.getFinalStatus()).thenReturn(finalStatus);
+		when(ws.getFailedValidations()).thenReturn(failedValidations);
+		return ws;
+	}
+
+	@Test
+	void doesNothing_whenNoFieldsToUpdate() {
+		WorkflowStatus ws = mockWs("id-1", null, null, null);
+
+		service.updateWorkflowStatus("tbl", ws);
+
+		verify(dynamoDbClient, never()).updateItem(any(UpdateItemRequest.class));
+	}
+
+	@Test
+	void updates_onlyRuleStatus() {
+		WorkflowStatus ws = mockWs("id-2", "IN_PROGRESS", null, null);
+		when(dynamoDbClient.updateItem(any(UpdateItemRequest.class))).thenReturn(UpdateItemResponse.builder().build());
+
+		service.updateWorkflowStatus("tbl", ws);
+
+		ArgumentCaptor<UpdateItemRequest> cap = ArgumentCaptor.forClass(UpdateItemRequest.class);
+		verify(dynamoDbClient).updateItem(cap.capture());
+		UpdateItemRequest sent = cap.getValue();
+
+		assertEquals("tbl", sent.tableName());
+		assertEquals(AttributeValue.builder().s("id-2").build(), sent.key().get("id"));
+		assertEquals(ReturnValue.ALL_NEW, sent.returnValues());
+
+// Expression and maps
+		assertEquals("SET #rs = :rs", sent.updateExpression());
+		assertEquals("rule_status", sent.expressionAttributeNames().get("#rs"));
+		assertEquals("IN_PROGRESS", sent.expressionAttributeValues().get(":rs").s());
+// should not contain others
+		assertFalse(sent.expressionAttributeNames().containsKey("#fs"));
+		assertFalse(sent.expressionAttributeNames().containsKey("#fv"));
+	}
+
+	@Test
+	void updates_ruleAndFinal_inOrder_withComma() {
+		WorkflowStatus ws = mockWs("id-3", "DONE", "SUCCESS", null);
+		when(dynamoDbClient.updateItem(any(UpdateItemRequest.class))).thenReturn(UpdateItemResponse.builder().build());
+
+		service.updateWorkflowStatus("tbl", ws);
+
+		ArgumentCaptor<UpdateItemRequest> cap = ArgumentCaptor.forClass(UpdateItemRequest.class);
+		verify(dynamoDbClient).updateItem(cap.capture());
+		UpdateItemRequest sent = cap.getValue();
+
+		String expr = sent.updateExpression();
+		assertEquals("SET #rs = :rs, #fs = :fs", expr); // exact order from code
+
+		assertEquals("rule_status", sent.expressionAttributeNames().get("#rs"));
+		assertEquals("final_status", sent.expressionAttributeNames().get("#fs"));
+		assertEquals("DONE", sent.expressionAttributeValues().get(":rs").s());
+		assertEquals("SUCCESS", sent.expressionAttributeValues().get(":fs").s());
+	}
+
+	@Test
+	void updates_failedValidations_withListAppend_andIfNotExists() {
+		WorkflowStatus ws = mockWs("id-4", null, null, Collections.emptyList());
+		when(dynamoDbClient.updateItem(any(UpdateItemRequest.class))).thenReturn(UpdateItemResponse.builder().build());
+
+		service.updateWorkflowStatus("tbl", ws);
+
+		ArgumentCaptor<UpdateItemRequest> cap = ArgumentCaptor.forClass(UpdateItemRequest.class);
+		verify(dynamoDbClient).updateItem(cap.capture());
+		UpdateItemRequest sent = cap.getValue();
+
+		assertTrue(sent.updateExpression().startsWith("SET "));
+// attribute names
+		assertEquals("failed_validations", sent.expressionAttributeNames().get("#fv"));
+
+// attribute values exist and are lists
+		AttributeValue fv = sent.expressionAttributeValues().get(":fv");
+		AttributeValue empty = sent.expressionAttributeValues().get(":empty");
+		assertNotNull(fv);
+		assertNotNull(empty);
+		assertNotNull(fv.l()); // list present (may be empty)
+		assertNotNull(empty.l()); // empty list placeholder
+	}
+
+	@Test
+	void wrapsClientError_inException() {
+		WorkflowStatus ws = mockWs("id-5", "ANY", null, null);
+		when(dynamoDbClient.updateItem(any(UpdateItemRequest.class)))
+				.thenThrow(DynamoDbException.builder().message("boom").build());
+
+		DynamicDynamoServiceException ex = assertThrows(DynamicDynamoServiceException.class,
+				() -> service.updateWorkflowStatus("tbl", ws));
+
+		assertTrue(ex.getMessage().toLowerCase().contains("error updating workflow status"));
 	}
 }
