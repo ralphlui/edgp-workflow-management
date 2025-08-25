@@ -64,7 +64,6 @@ public class DynamicDynamoServiceTest {
 		when(dynamoDbClient.describeTable(any(DescribeTableRequest.class)))
 				.thenThrow(InternalServerErrorException.builder().message("Oops").build());
 
-		// If your service doesn’t wrap exceptions, assert the AWS exception type:
 		assertThrows(DynamoDbException.class, () -> service.tableExists("AnyTable"));
 
 		verify(dynamoDbClient).describeTable(any(DescribeTableRequest.class));
