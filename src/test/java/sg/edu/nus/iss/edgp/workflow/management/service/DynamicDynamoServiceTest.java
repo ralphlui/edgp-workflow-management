@@ -3,6 +3,7 @@ package sg.edu.nus.iss.edgp.workflow.management.service;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -13,6 +14,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -157,7 +159,7 @@ public class DynamicDynamoServiceTest {
 	}
 
 	@Test
-	void wrapsClientError_inCustomException() {
+	void wrapsClientError_inCustomException1() {
 		when(dynamoDbClient.scan(any(ScanRequest.class)))
 				.thenThrow(DynamoDbException.builder().message("boom").build());
 
@@ -165,5 +167,51 @@ public class DynamicDynamoServiceTest {
 				() -> service.getDataByWorkflowStatusId("tbl", "123"));
 
 		assertTrue(ex.getMessage().toLowerCase().contains("workflow status id"));
+	}
+
+	@Test
+	void returnsNull_whenNoItems() {
+		when(dynamoDbClient.scan(any(ScanRequest.class)))
+				.thenReturn(ScanResponse.builder().items(Collections.emptyList()).build());
+
+		Map<String, AttributeValue> out = service.getFileDataByFileId("files", "f-123");
+
+		assertNull(out);
+		verify(dynamoDbClient).scan(any(ScanRequest.class));
+	}
+
+	@Test
+	void returnsFirstItem_andBuildsRequestCorrectly1() {
+		String table = "files";
+		String id = "f-123";
+		Map<String, AttributeValue> item = Map.of("id", AttributeValue.builder().s(id).build(), "name",
+				AttributeValue.builder().s("photo.jpg").build());
+
+		when(dynamoDbClient.scan(any(ScanRequest.class)))
+				.thenReturn(ScanResponse.builder().items(List.of(item)).build());
+
+		Map<String, AttributeValue> result = service.getFileDataByFileId(table, id);
+
+		// returned first item
+		assertNotNull(result);
+		assertEquals(id, result.get("id").s());
+		assertEquals("photo.jpg", result.get("name").s());
+
+		// verify the request details
+		ArgumentCaptor<ScanRequest> cap = ArgumentCaptor.forClass(ScanRequest.class);
+		verify(dynamoDbClient).scan(cap.capture());
+		ScanRequest sent = cap.getValue();
+		assertEquals(table, sent.tableName());
+		assertEquals("id = :id", sent.filterExpression());
+		assertTrue(sent.expressionAttributeValues().containsKey(":id"));
+		assertEquals(id, sent.expressionAttributeValues().get(":id").s());
+	}
+
+	@Test
+	void wrapsClientError_inCustomException() {
+		when(dynamoDbClient.scan(any(ScanRequest.class)))
+				.thenThrow(DynamoDbException.builder().message("boom").build());
+
+		assertThrows(DynamicDynamoServiceException.class, () -> service.getFileDataByFileId("files", "f-123"));
 	}
 }
