@@ -2,6 +2,7 @@ package sg.edu.nus.iss.edgp.workflow.management.service;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -12,6 +13,9 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
+import java.util.Map;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,9 +24,11 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import sg.edu.nus.iss.edgp.workflow.management.exception.DynamicDynamoServiceException;
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.DynamicDynamoService;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeDefinition;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.BillingMode;
 import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest;
 import software.amazon.awssdk.services.dynamodb.model.CreateTableResponse;
@@ -34,6 +40,8 @@ import software.amazon.awssdk.services.dynamodb.model.KeySchemaElement;
 import software.amazon.awssdk.services.dynamodb.model.ResourceInUseException;
 import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
+import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
+import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
 
 @ExtendWith(MockitoExtension.class)
 public class DynamicDynamoServiceTest {
@@ -83,7 +91,7 @@ public class DynamicDynamoServiceTest {
 
 	@Test
 	void createTable_buildsExpectedRequest_callsSdk_andWaits() {
-		
+
 		String tableName = "MyTable";
 		when(dynamoDbClient.createTable(any(CreateTableRequest.class)))
 				.thenReturn(CreateTableResponse.builder().build());
@@ -118,5 +126,44 @@ public class DynamicDynamoServiceTest {
 		assertThrows(DynamoDbException.class, () -> service.createTable(tableName));
 
 		verify(service, never()).waitForTableToBecomeActive(anyString());
+	}
+
+	@Test
+	void returnsFirstItem_andBuildsRequestCorrectly() {
+		String table = "tbl";
+		String id = "abc-123";
+
+		Map<String, AttributeValue> item = Map.of("id", AttributeValue.builder().s(id).build(), "status",
+				AttributeValue.builder().s("READY").build());
+
+		when(dynamoDbClient.scan(any(ScanRequest.class)))
+				.thenReturn(ScanResponse.builder().items(List.of(item)).build());
+
+		Map<String, AttributeValue> result = service.getDataByWorkflowStatusId(table, id);
+
+		// returned first item
+		assertNotNull(result);
+		assertEquals(id, result.get("id").s());
+		assertEquals("READY", result.get("status").s());
+
+		// request correctness
+		ArgumentCaptor<ScanRequest> cap = ArgumentCaptor.forClass(ScanRequest.class);
+		verify(dynamoDbClient).scan(cap.capture());
+		ScanRequest sent = cap.getValue();
+		assertEquals(table, sent.tableName());
+		assertEquals("id = :id", sent.filterExpression());
+		assertTrue(sent.expressionAttributeValues().containsKey(":id"));
+		assertEquals(id, sent.expressionAttributeValues().get(":id").s());
+	}
+
+	@Test
+	void wrapsClientError_inCustomException() {
+		when(dynamoDbClient.scan(any(ScanRequest.class)))
+				.thenThrow(DynamoDbException.builder().message("boom").build());
+
+		DynamicDynamoServiceException ex = assertThrows(DynamicDynamoServiceException.class,
+				() -> service.getDataByWorkflowStatusId("tbl", "123"));
+
+		assertTrue(ex.getMessage().toLowerCase().contains("workflow status id"));
 	}
 }
