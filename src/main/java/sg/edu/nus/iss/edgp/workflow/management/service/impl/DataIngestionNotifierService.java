@@ -37,10 +37,19 @@ public class DataIngestionNotifierService implements IDataIngestionNotifierServi
 				if (uploadedUser != null && !uploadedUser.isEmpty()) {
 					String authorizationHeader = jsonReader.getAccessToken(uploadedUser);
 					if (authorizationHeader != null && !authorizationHeader.isEmpty()) {
+						String orgFileName = csvFile.getAbsoluteFile().getName()
+						        .replaceAll("-.*(?=\\.csv$)", "");
 						JSONObject response = notificationAPICall.sendEmailWithAttachment(uploadedUser,
 								"Data Ingestion Result",
-								"Hi <br> Your uploaded file has successfully ingested. Please find attached the data ingestion result.", csvFile,
-								authorizationHeader);
+							    "Hi, <br> We are pleased to inform you that your uploaded file <b>" 
+							    + orgFileName + "</b> has been successfully ingested. "
+							    + "The data ingestion result is attached for your review."
+							    + " <br> <br> Thank you for your attention."
+							    + "<br><br>"
+							    + "<i>(This is an auto-generated email, please do not reply)</i>", 
+							    csvFile,
+							    authorizationHeader);
+
 
 						if (!Boolean.TRUE.equals(response.get("success"))) {
 							throw new RuntimeException("Email sending failed: " + response.toJSONString());
