@@ -85,7 +85,7 @@ public class WorkflowService implements IWorkflowService {
 
 	private void insetCleanMasterData(String status, String domainTableName,
 			Map<String, AttributeValue> workflowStatusData) {
-		if (status != null && Status.SUCCESS.toString().equals(status.toUpperCase()) && !domainTableName.isEmpty()) {
+		if (status != null && Status.success.toString().equals(status.toUpperCase()) && !domainTableName.isEmpty()) {
 			Map<String, Object> workflowStatusFields = dynamoItemToJavaMap(workflowStatusData);
 
 			Optional.ofNullable(workflowStatusFields.remove("id"))

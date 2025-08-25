@@ -86,26 +86,25 @@ public class ProcessStatusObserverService implements IProcessStatusObserverServi
 	public String getAllStatusForFile(String fileId) {
 	    ScanRequest req = ScanRequest.builder()
 	        .tableName(masterDataTaskTrackerTableName.trim())
-	        .filterExpression("#fid = :fid AND #fs = :fail")
-	        .expressionAttributeNames(Map.of(
-	            "#fid", "file_id",
-	            "#fs", "final_status"
-	        ))
+	        .filterExpression("#fid = :fid")
+	        .expressionAttributeNames(Map.of("#fid", "file_id"))
 	        .expressionAttributeValues(Map.of(
-	            ":fid", AttributeValue.builder().s(fileId).build(),
-	            ":fail", AttributeValue.builder().s(Status.FAIL.toString()).build()
+	            ":fid", AttributeValue.builder().s(fileId).build()
 	        ))
-	        .select(Select.COUNT)
 	        .build();
 
 	    for (ScanResponse page : dynamoDbClient.scanPaginator(req)) {
-	        if (page.count() > 0) {
-	            return Status.FAIL.toString(); // At least one fail found
+	        for (Map<String, AttributeValue> item : page.items()) {
+	            String status = item.get("final_status").s();
+	            if (status != null && status.equalsIgnoreCase(Status.fail.toString())) {
+	                return Status.fail.toString();
+	            }
 	        }
 	    }
 
-	    return Status.SUCCESS.toString(); // No fail found
+	    return Status.success.toString();
 	}
+
 
 
 	@Override
