@@ -88,7 +88,7 @@ public class WorkflowService implements IWorkflowService {
 
 	private void insetCleanMasterData(String status, String domainTableName,
 			Map<String, AttributeValue> workflowStatusData) {
-		if (status != null && Status.success.toString().equals(status.toUpperCase()) && !domainTableName.isEmpty()) {
+		if (status != null && Status.success.toString().equals(status.toLowerCase()) && !domainTableName.isEmpty()) {
 			Map<String, Object> workflowStatusFields = dynamoItemToJavaMap(workflowStatusData);
 
 //			Optional.ofNullable(workflowStatusFields.remove("id"))
@@ -136,9 +136,9 @@ public class WorkflowService implements IWorkflowService {
 				dynamicList.add(dynamicItem);
 				
 				String status = dynamicItem.get("final_status").toString();
-				if (status != null && status.toUpperCase().equals(Status.success.toString())) {
+				if (status != null && status.toLowerCase().equals(Status.success.toString())) {
 					successRecords += 1;
-				} else if (status != null && status.toUpperCase().equals(Status.fail.toString())) {
+				} else if (status != null && status.toLowerCase().equals(Status.fail.toString())) {
 					failedRecords += 1;
 				}
 			}
