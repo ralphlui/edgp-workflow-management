@@ -135,84 +135,72 @@ class WorkflowControllerMockBeanTest {
 				.andExpect(jsonPath("$.message").value("Workflow retrieval failed")).andDo(print());
 		verify(auditService).logAudit(any(AuditDTO.class), eq(500), eq("Workflow retrieval failed"), eq(AUTH));
 	}
-	
-	
+
 	@Test
-    void getById_success() throws Exception {
-        // record returned by service
-        Map<String,Object> record = new HashMap<>();
-        record.put("id", "wf-1");
-        record.put("organization_id", "org-1");
-        record.put("name", "Alpha");
-        when(workflowService.retrieveDataRecordDetailbyWorkflowId("wf-1")).thenReturn(record);
+	void getById_success() throws Exception {
+		// record returned by service
+		Map<String, Object> record = new HashMap<>();
+		record.put("id", "wf-1");
+		record.put("organization_id", "org-1");
+		record.put("name", "Alpha");
+		when(workflowService.retrieveDataRecordDetailbyWorkflowId("wf-1")).thenReturn(record);
 
-        // validation passes
-        ValidationResult ok = mock(ValidationResult.class);
-        when(ok.isValid()).thenReturn(true);
-        when(ok.getStatus()).thenReturn(HttpStatus.OK);
-        when(ok.getMessage()).thenReturn("OK");
-        when(validationStrategy.isUserOrganizationValidAndActive(eq("org-1"), eq("org-1"), eq(AUTH)))
-            .thenReturn(ok);
+		// validation passes
+		ValidationResult ok = mock(ValidationResult.class);
+		when(ok.isValid()).thenReturn(true);
+		when(ok.getStatus()).thenReturn(HttpStatus.OK);
+		when(ok.getMessage()).thenReturn("OK");
+		when(validationStrategy.isUserOrganizationValidAndActive(eq("org-1"), eq("org-1"), eq(AUTH))).thenReturn(ok);
 
-        mockMvc.perform(get(ENDPOINT+"/my-data")
-                .header("Authorization", AUTH)
-                .header("X-WorkflowId", "wf-1"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.message").value("Requested data is available."))
-            .andExpect(jsonPath("$.data.id").value("wf-1"))
-            .andExpect(jsonPath("$.data.organization_id").value("org-1"));
+		mockMvc.perform(get(ENDPOINT + "/my-data").header("Authorization", AUTH).header("X-WorkflowId", "wf-1"))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.message").value("Requested data is available."))
+				.andExpect(jsonPath("$.data.id").value("wf-1"))
+				.andExpect(jsonPath("$.data.organization_id").value("org-1"));
 
-        verify(auditService).logAudit(any(AuditDTO.class), eq(200), eq("Requested data is available."), eq(AUTH));
-    }
+		verify(auditService).logAudit(any(AuditDTO.class), eq(200), eq("Requested data is available."), eq(AUTH));
+	}
 
-    @Test
-    void getById_blankWorkflowId() throws Exception {
-    	mockMvc.perform(get(ENDPOINT+"/my-data")
-                .header("Authorization", AUTH)
-                .header("X-WorkflowId", ""))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").value("Bad Request: Workflow id could not be blank."));
+	@Test
+	void getById_blankWorkflowId() throws Exception {
+		mockMvc.perform(get(ENDPOINT + "/my-data").header("Authorization", AUTH).header("X-WorkflowId", ""))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value("Bad Request: Workflow id could not be blank."));
 
-        verify(auditService).logAudit(any(AuditDTO.class), eq(400),
-                eq("Bad Request: Workflow id could not be blank."), eq(AUTH));
-        verifyNoInteractions(workflowService);
-    }
+		verify(auditService).logAudit(any(AuditDTO.class), eq(400), eq("Bad Request: Workflow id could not be blank."),
+				eq(AUTH));
+		verifyNoInteractions(workflowService);
+	}
 
-    @Test
-    void getById_unauthorized() throws Exception {
-      
-        Map<String,Object> record = new HashMap<>();
-        record.put("id", "wf-2");
-        record.put("organization_id", "org-other");
-        when(workflowService.retrieveDataRecordDetailbyWorkflowId("wf-2")).thenReturn(record);
+	@Test
+	void getById_unauthorized() throws Exception {
 
-        ValidationResult invalid = mock(ValidationResult.class);
-        when(invalid.isValid()).thenReturn(false);
-        when(invalid.getStatus()).thenReturn(HttpStatus.UNAUTHORIZED);
-        when(invalid.getMessage()).thenReturn("Organization mismatch");
-        when(validationStrategy.isUserOrganizationValidAndActive(eq("org-other"), eq("org-1"), eq(AUTH)))
-            .thenReturn(invalid);
+		Map<String, Object> record = new HashMap<>();
+		record.put("id", "wf-2");
+		record.put("organization_id", "org-other");
+		when(workflowService.retrieveDataRecordDetailbyWorkflowId("wf-2")).thenReturn(record);
 
-        mockMvc.perform(get(ENDPOINT+"/my-data")
-                .header("Authorization", AUTH)
-                .header("X-WorkflowId", "wf-2"))
-            .andExpect(status().isUnauthorized())
-            .andExpect(jsonPath("$.message").value("Organization mismatch"));
+		ValidationResult invalid = mock(ValidationResult.class);
+		when(invalid.isValid()).thenReturn(false);
+		when(invalid.getStatus()).thenReturn(HttpStatus.UNAUTHORIZED);
+		when(invalid.getMessage()).thenReturn("Organization mismatch");
+		when(validationStrategy.isUserOrganizationValidAndActive(eq("org-other"), eq("org-1"), eq(AUTH)))
+				.thenReturn(invalid);
 
-        verify(auditService).logAudit(any(AuditDTO.class), eq(401), eq("Organization mismatch"), eq(AUTH));
-    }
+		mockMvc.perform(get(ENDPOINT + "/my-data").header("Authorization", AUTH).header("X-WorkflowId", "wf-2"))
+				.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.message").value("Organization mismatch"));
 
-    @Test
-    void getById_serviceThrows() throws Exception {
-        when(workflowService.retrieveDataRecordDetailbyWorkflowId("boom"))
-            .thenThrow(new WorkflowServiceException("Workflow retrieval failed"));
+		verify(auditService).logAudit(any(AuditDTO.class), eq(401), eq("Organization mismatch"), eq(AUTH));
+	}
 
-        mockMvc.perform(get(ENDPOINT+"/my-data")
-                .header("Authorization", AUTH)
-                .header("X-WorkflowId", "boom"))
-            .andExpect(status().isInternalServerError())
-            .andExpect(jsonPath("$.message").value("Workflow retrieval failed"));
+	@Test
+	void getById_serviceThrows() throws Exception {
+		when(workflowService.retrieveDataRecordDetailbyWorkflowId("boom"))
+				.thenThrow(new WorkflowServiceException("Workflow retrieval failed"));
 
-        verify(auditService).logAudit(any(AuditDTO.class), eq(500), eq("Workflow retrieval failed"), eq(AUTH));
-    }
+		mockMvc.perform(get(ENDPOINT + "/my-data").header("Authorization", AUTH).header("X-WorkflowId", "boom"))
+				.andExpect(status().isInternalServerError())
+				.andExpect(jsonPath("$.message").value("Workflow retrieval failed"));
+
+		verify(auditService).logAudit(any(AuditDTO.class), eq(500), eq("Workflow retrieval failed"), eq(AUTH));
+	}
 }
