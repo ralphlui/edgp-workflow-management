@@ -43,8 +43,6 @@ class WorkflowControllerMockBeanTest {
 
 	@Autowired
 	private MockMvc mockMvc;
-	@Autowired
-	private WorkflowController controller;
 
 	@MockitoBean
 	private JWTService jwtService;
@@ -57,8 +55,6 @@ class WorkflowControllerMockBeanTest {
 
 	@BeforeEach
 	void boot() {
-		ReflectionTestUtils.setField(controller, "activityTypePrefix", "WFM - ");
-		ReflectionTestUtils.setField(controller, "genericErrorMessage", "Something went wrong");
 
 		when(jwtService.extractUserIdFromToken("good.jwt.token")).thenReturn("user-1");
 		when(jwtService.extractOrgIdFromToken("good.jwt.token")).thenReturn("org-1");
