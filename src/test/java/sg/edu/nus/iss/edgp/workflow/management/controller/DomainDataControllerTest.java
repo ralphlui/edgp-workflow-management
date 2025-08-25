@@ -69,6 +69,8 @@ public class DomainDataControllerTest {
 
 		when(validationStrategy.validateDomainAndOrgAccess(eq("legal"), eq("org-1"), eq(AUTH))).thenReturn(ok);
 
+		when(validationStrategy.isUserOrganizationValidAndActive(eq("org-1"), eq("org-1"), eq(AUTH))).thenReturn(ok);
+
 		when(auditService.createAuditDTO(anyString(), anyString(), anyString(), anyString(), any(HTTPVerb.class)))
 				.thenReturn(Mockito.mock(AuditDTO.class));
 		doNothing().when(auditService).logAudit(any(AuditDTO.class), anyInt(), anyString(), anyString());
@@ -162,5 +164,73 @@ public class DomainDataControllerTest {
 				.andExpect(jsonPath("$.message").value("Domain retrieval failed")).andDo(print());
 
 		verify(auditService).logAudit(any(AuditDTO.class), eq(500), eq("Domain retrieval failed"), eq(AUTH));
+	}
+
+	@Test
+	void getDomainDataById_success() throws Exception {
+		Map<String, Object> record = new HashMap<>();
+		record.put("id", "123");
+		record.put("organization_id", "org-1");
+		record.put("name", "Alpha");
+
+		when(domainDataService.retrieveDetailDomainDataRecordById("finance", "123")).thenReturn(record);
+
+		mockMvc.perform(
+				get(ENDPOINT+"/my-domain-data").header("Authorization", AUTH).header("X-Id", "123").param("domainName", "finance"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.message").value("Requested domain data record is available."))
+				.andExpect(jsonPath("$.data.id").value("123"))
+				.andExpect(jsonPath("$.data.organization_id").value("org-1"));
+
+		verify(auditService).logAudit(any(AuditDTO.class), eq(200), eq("Requested domain data record is available."),
+				eq(AUTH));
+	}
+
+	@Test
+	void getDomainDataById_badRequest() throws Exception {
+		// Blank id triggers the bad request branch
+		mockMvc.perform(get(ENDPOINT+"/my-domain-data").header("Authorization", AUTH).header("X-Id", "").param("domainName", "finance"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value("Bad Request: Id or domain could not be blank."));
+
+		verify(auditService).logAudit(any(AuditDTO.class), eq(400), eq("Bad Request: Id or domain could not be blank."),
+				eq(AUTH));
+		verifyNoInteractions(domainDataService);
+		verifyNoInteractions(validationStrategy);
+	}
+
+	@Test
+	void getDomainDataById_unauthorized() throws Exception {
+		Map<String, Object> record = new HashMap<>();
+		record.put("id", "999");
+		record.put("organization_id", "org-other");
+		when(domainDataService.retrieveDetailDomainDataRecordById("retail", "999")).thenReturn(record);
+
+		ValidationResult invalid = mock(ValidationResult.class);
+		when(invalid.isValid()).thenReturn(false);
+		when(invalid.getStatus()).thenReturn(HttpStatus.UNAUTHORIZED);
+		when(invalid.getMessage()).thenReturn("Unauthorized");
+		when(validationStrategy.isUserOrganizationValidAndActive(eq("org-other"), eq("org-1"), eq(AUTH)))
+				.thenReturn(invalid);
+
+		mockMvc.perform(get(ENDPOINT+"/my-domain-data").header("Authorization", AUTH).header("X-Id", "999").param("domainName", "retail"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.message").value("Unauthorized to view this domain data record."));
+
+		verify(auditService).logAudit(any(AuditDTO.class), eq(401), eq("Unauthorized to view this domain data record."),
+				eq(AUTH));
+	}
+
+	@Test
+	void getDomainDataById_serviceError() throws Exception {
+		when(domainDataService.retrieveDetailDomainDataRecordById("finance", "boom"))
+				.thenThrow(new DomainDataServiceException("Domain fetch failed"));
+
+		mockMvc.perform(
+				get(ENDPOINT+"/my-domain-data").header("Authorization", AUTH).header("X-Id", "boom").param("domainName", "finance"))
+				.andExpect(status().isInternalServerError())
+				.andExpect(jsonPath("$.message").value("Domain fetch failed"));
+
+		verify(auditService).logAudit(any(AuditDTO.class), eq(500), eq("Domain fetch failed"), eq(AUTH));
 	}
 }
