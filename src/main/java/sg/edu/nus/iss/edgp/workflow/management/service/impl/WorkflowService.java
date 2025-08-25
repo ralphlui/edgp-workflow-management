@@ -136,9 +136,9 @@ public class WorkflowService implements IWorkflowService {
 				dynamicList.add(dynamicItem);
 				
 				String status = dynamicItem.get("final_status").toString();
-				if (status != null && status.toUpperCase().equals(Status.SUCCESS.toString())) {
+				if (status != null && status.toUpperCase().equals(Status.success.toString())) {
 					successRecords += 1;
-				} else if (status != null && status.toUpperCase().equals(Status.FAIL.toString())) {
+				} else if (status != null && status.toUpperCase().equals(Status.fail.toString())) {
 					failedRecords += 1;
 				}
 			}
