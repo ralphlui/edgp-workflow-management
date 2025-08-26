@@ -15,9 +15,13 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,6 +31,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import sg.edu.nus.iss.edgp.workflow.management.dto.SearchRequest;
 import sg.edu.nus.iss.edgp.workflow.management.dto.WorkflowStatus;
 import sg.edu.nus.iss.edgp.workflow.management.exception.DynamicDynamoServiceException;
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.DynamicDynamoService;
@@ -317,5 +322,67 @@ public class DynamicDynamoServiceTest {
 				() -> service.updateWorkflowStatus("tbl", ws));
 
 		assertTrue(ex.getMessage().toLowerCase().contains("error updating workflow status"));
+	}
+
+	// Helper to build a minimal item map with required keys
+	private static Map<String, AttributeValue> item(String id, String orgId, String fileId, String finalStatus) {
+		Map<String, AttributeValue> m = new HashMap<>();
+		m.put("id", AttributeValue.builder().s(id).build());
+		m.put("organization_id", AttributeValue.builder().s(orgId).build());
+		if (fileId != null)
+			m.put("file_id", AttributeValue.builder().s(fileId).build());
+		if (finalStatus != null)
+			m.put("final_status", AttributeValue.builder().s(finalStatus).build());
+		return m;
+	}
+
+	@Test
+	void retrieveDataList_WithPagination_ReturnsRequestedPageSlice() {
+		String table = "my-table";
+		String orgId = "org-123";
+
+		// Build 15 items -> sorted by id "id-01".."id-15"
+		List<Map<String, AttributeValue>> all = IntStream.rangeClosed(1, 15)
+				.mapToObj(i -> item(String.format("id-%02d", i), orgId, "file-9", "done")).collect(Collectors.toList());
+
+		when(dynamoDbClient.scan(any(ScanRequest.class))).thenReturn(ScanResponse.builder().items(all)
+
+				.lastEvaluatedKey(Collections.emptyMap()).build());
+
+		SearchRequest search = mock(SearchRequest.class);
+		when(search.getStatus()).thenReturn(null);
+		when(search.getPage()).thenReturn(2);
+		when(search.getSize()).thenReturn(5);
+
+		Map<String, Object> result = service.retrieveDataList(table, "file-9", search, orgId);
+
+		assertEquals(15, result.get("totalCount"));
+
+		@SuppressWarnings("unchecked")
+		List<Map<String, AttributeValue>> items = (List<Map<String, AttributeValue>>) result.get("items");
+		List<String> ids = items.stream().map(m -> m.get("id").s()).collect(Collectors.toList());
+		assertEquals(Arrays.asList("id-06", "id-07", "id-08", "id-09", "id-10"), ids);
+	}
+
+	@Test
+	void retrieveDataList_PaginationBeyondRange_ReturnsEmptyList() {
+		String table = "my-table";
+		String orgId = "org-123";
+
+		when(dynamoDbClient.scan(any(ScanRequest.class))).thenReturn(ScanResponse.builder()
+				.items(Arrays.asList(item("a", orgId, null, "done"), item("b", orgId, null, "done")))
+				.lastEvaluatedKey(Collections.emptyMap()).build());
+
+		SearchRequest search = mock(SearchRequest.class);
+		when(search.getStatus()).thenReturn(null);
+		when(search.getPage()).thenReturn(5); // 5th page of size 10 is out of range
+		when(search.getSize()).thenReturn(10);
+
+		Map<String, Object> result = service.retrieveDataList(table, null, search, orgId);
+
+		assertEquals(2, result.get("totalCount"));
+		@SuppressWarnings("unchecked")
+		List<Map<String, AttributeValue>> items = (List<Map<String, AttributeValue>>) result.get("items");
+		assertTrue(items.isEmpty());
 	}
 }
