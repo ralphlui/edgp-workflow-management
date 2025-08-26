@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,7 +72,7 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 		waitForTableToBecomeActive(tableName);
 	}
 
-	private void waitForTableToBecomeActive(String tableName) {
+	public void waitForTableToBecomeActive(String tableName) {
 		while (true) {
 			DescribeTableResponse response = dynamoDbClient
 					.describeTable(DescribeTableRequest.builder().tableName(tableName).build());

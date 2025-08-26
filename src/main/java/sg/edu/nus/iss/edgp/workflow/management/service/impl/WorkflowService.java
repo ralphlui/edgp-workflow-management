@@ -183,7 +183,7 @@ public class WorkflowService implements IWorkflowService {
 
 	}
 
-	private Map<String, Object> dynamoItemToJavaMap(Map<String, AttributeValue> itemAttributes) {
+	public Map<String, Object> dynamoItemToJavaMap(Map<String, AttributeValue> itemAttributes) {
 		Map<String, Object> plainItem = new HashMap<>();
 		for (Map.Entry<String, AttributeValue> attrEntry : itemAttributes.entrySet()) {
 			plainItem.put(attrEntry.getKey(), convertAttributeValue(attrEntry.getValue()));
