@@ -1,11 +1,7 @@
 package sg.edu.nus.iss.edgp.workflow.management.service;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
@@ -15,9 +11,13 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -35,6 +35,7 @@ import sg.edu.nus.iss.edgp.workflow.management.dto.SearchRequest;
 import sg.edu.nus.iss.edgp.workflow.management.dto.WorkflowStatus;
 import sg.edu.nus.iss.edgp.workflow.management.exception.DynamicDynamoServiceException;
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.DynamicDynamoService;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeDefinition;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
@@ -384,5 +385,208 @@ public class DynamicDynamoServiceTest {
 		@SuppressWarnings("unchecked")
 		List<Map<String, AttributeValue>> items = (List<Map<String, AttributeValue>>) result.get("items");
 		assertTrue(items.isEmpty());
+	}
+
+	private static AttributeValue S(String s) {
+		return AttributeValue.builder().s(s).build();
+	}
+
+	private static Map<String, AttributeValue> itemBase(String id, String fileId, String finalStatus) {
+		Map<String, AttributeValue> m = new LinkedHashMap<>();
+		m.put("id", S(id));
+		m.put("file_id", S(fileId));
+		m.put("organization_id", S("org-1"));
+		m.put("domain_name", S("domain"));
+		m.put("policy_id", S("policy"));
+		m.put("uploaded_by", S("user"));
+		m.put("created_date", S("2025-01-01T00:00:00Z"));
+		m.put("final_status", S(finalStatus));
+		// include a couple of non-excluded fields to be exported
+		m.put("col1", S("v1"));
+		m.put("col2", S("v2"));
+		return m;
+	}
+
+	private static AttributeValue failedValidation(String rule, String col, String msg, String status) {
+		Map<String, AttributeValue> m = new LinkedHashMap<>();
+		m.put("rule_name", S(rule));
+		m.put("column_name", S(col));
+		m.put("error_message", S(msg));
+		m.put("status", S(status));
+		return AttributeValue.builder().m(m).build();
+	}
+
+	private static List<String> readAllLines(File f) throws IOException {
+		return Files.readAllLines(f.toPath());
+	}
+
+	@Test
+	void exportToCsv_success_topLevelFailedValidations() throws Exception {
+		// Arrange: item with top-level "failed_validations"
+		Map<String, AttributeValue> item = itemBase("1", "file-123", "done");
+		item.put("failed_validations",
+				AttributeValue.builder().l(Arrays.asList(failedValidation("ruleA", "colA", "msgA", "FAILED"),
+						failedValidation("ruleB", "colB", "msgB", "FAILED"))).build());
+
+		when(dynamoDbClient.scan(any(ScanRequest.class)))
+				.thenReturn(ScanResponse.builder().items(Collections.singletonList(item)).build());
+
+		HashMap<String, String> fileInfo = new HashMap<>();
+		fileInfo.put("id", "file-123");
+		fileInfo.put("name", "export.csv");
+
+		// Act
+		File csv = service.exportToCsv("tbl", fileInfo);
+
+		// Assert basic scan request correctness
+		ArgumentCaptor<ScanRequest> captor = ArgumentCaptor.forClass(ScanRequest.class);
+		verify(dynamoDbClient).scan(captor.capture());
+		ScanRequest sent = captor.getValue();
+		assertEquals("tbl", sent.tableName());
+		assertTrue(sent.filterExpression().contains("file_id = :file_id"));
+		assertEquals("file-123", sent.expressionAttributeValues().get(":file_id").s());
+
+		// Assert file content
+		List<String> lines = readAllLines(csv);
+		assertEquals(2, lines.size(), "header + 1 data row expected");
+
+		String header = lines.get(0);
+		// Should not contain excluded default fields
+		assertFalse(header.contains("file_id"));
+		assertFalse(header.contains("organization_id"));
+		assertFalse(header.contains("id"));
+		// Should contain included fields and appended special columns
+		assertTrue(header.contains("col1"));
+		assertTrue(header.contains("col2"));
+		assertTrue(header.contains("failed_rule_names"));
+		assertTrue(header.contains("failed_column_names"));
+		assertTrue(header.contains("failed_error_messages"));
+		assertTrue(header.contains("failed_statuses"));
+		assertTrue(header.contains("final_status"));
+
+		String row = lines.get(1);
+		// Values from our base fields
+		assertTrue(row.contains("v1"));
+		assertTrue(row.contains("v2"));
+		// Aggregated semicolon-joined lists
+		assertTrue(row.contains("ruleA;ruleB"));
+		assertTrue(row.contains("colA;colB"));
+		assertTrue(row.contains("msgA;msgB"));
+		assertTrue(row.contains("FAILED;FAILED"));
+		// Final status echoed
+		assertTrue(row.contains("done"));
+
+		// Cleanup
+		assertTrue(csv.delete());
+	}
+
+	@Test
+	void exportToCsv_success_nestedFailedValidationsUnderRuleStatus() throws Exception {
+		// Arrange: item with nested rule_status.failed_validations (no top-level
+		// failed_validations)
+		Map<String, AttributeValue> nestedMap = new LinkedHashMap<>();
+		nestedMap.put("failed_validations", AttributeValue.builder()
+				.l(Collections.singletonList(failedValidation("ruleX", "colX", "msgX", "WARN"))).build());
+
+		Map<String, AttributeValue> item = itemBase("2", "file-9", "in_progress");
+		item.put("rule_status", AttributeValue.builder().m(nestedMap).build());
+
+		when(dynamoDbClient.scan(any(ScanRequest.class)))
+				.thenReturn(ScanResponse.builder().items(Collections.singletonList(item)).build());
+
+		HashMap<String, String> fileInfo = new HashMap<>();
+		fileInfo.put("id", "file-9");
+		fileInfo.put("name", "rpt.csv");
+
+		// Act
+		File csv = service.exportToCsv("tbl2", fileInfo);
+
+		// Assert CSV content includes our nested values
+		List<String> lines = readAllLines(csv);
+		assertEquals(2, lines.size());
+
+		String header = lines.get(0);
+		String row = lines.get(1);
+
+		assertTrue(header.contains("failed_rule_names"));
+		assertTrue(row.contains("ruleX"));
+		assertTrue(row.contains("colX"));
+		assertTrue(row.contains("msgX"));
+		assertTrue(row.contains("WARN"));
+		assertTrue(row.contains("in_progress"));
+
+		assertTrue(csv.delete());
+	}
+
+	@Test
+	void exportToCsv_wrapsDynamoErrors() {
+		when(dynamoDbClient.scan(any(ScanRequest.class))).thenThrow(SdkException.create("boom", null));
+
+		HashMap<String, String> fileInfo = new HashMap<>();
+		fileInfo.put("id", "file-err");
+		fileInfo.put("name", "err.csv");
+
+		assertThrows(DynamicDynamoServiceException.class, () -> service.exportToCsv("tbl", fileInfo));
+	}
+
+	@Test
+	void returnsUploadedBy_whenItemExistsWithUploadedBy() {
+		String table = "tbl";
+		String id = "file-123";
+
+		Map<String, AttributeValue> item = new HashMap<>();
+		item.put("id", S(id));
+		item.put("uploaded_by", S("alice@example.com"));
+
+		when(dynamoDbClient.scan(any(ScanRequest.class)))
+				.thenReturn(ScanResponse.builder().items(Collections.singletonList(item)).build());
+
+		String result = service.getUploadUserByFileId(table, id);
+		assertEquals("alice@example.com", result);
+
+		// verify request construction
+		ArgumentCaptor<ScanRequest> captor = ArgumentCaptor.forClass(ScanRequest.class);
+		verify(dynamoDbClient).scan(captor.capture());
+		ScanRequest sent = captor.getValue();
+		assertEquals(table, sent.tableName());
+		assertEquals("id = :id", sent.filterExpression());
+		assertEquals(id, sent.expressionAttributeValues().get(":id").s());
+	}
+
+	@Test
+	void returnsNull_whenItemExistsButUploadedByMissing() {
+		String table = "tbl";
+		String id = "file-456";
+
+		Map<String, AttributeValue> item = new HashMap<>();
+		item.put("id", S(id));
+		// no uploaded_by
+
+		when(dynamoDbClient.scan(any(ScanRequest.class)))
+				.thenReturn(ScanResponse.builder().items(Collections.singletonList(item)).build());
+
+		String result = service.getUploadUserByFileId(table, id);
+		assertNull(result);
+	}
+
+	@Test
+	void returnsNull_whenNoItemsFound() {
+		when(dynamoDbClient.scan(any(ScanRequest.class)))
+				.thenReturn(ScanResponse.builder().items(Collections.emptyList()).build());
+
+		String result = service.getUploadUserByFileId("tbl", "file-789");
+		assertNull(result);
+	}
+
+	@Test
+	void throws_whenIdNullOrBlank() {
+		assertThrows(DynamicDynamoServiceException.class, () -> service.getUploadUserByFileId("tbl", null));
+		assertThrows(DynamicDynamoServiceException.class, () -> service.getUploadUserByFileId("tbl", "   "));
+	}
+
+	@Test
+	void wrapsSdkException_fromDynamo() {
+		when(dynamoDbClient.scan(any(ScanRequest.class))).thenThrow(SdkException.create("boom", null));
+		assertThrows(DynamicDynamoServiceException.class, () -> service.getUploadUserByFileId("tbl", "file-x"));
 	}
 }
