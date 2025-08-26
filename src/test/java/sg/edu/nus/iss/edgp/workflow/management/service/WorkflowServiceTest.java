@@ -13,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import sg.edu.nus.iss.edgp.workflow.management.dto.SearchRequest;
 import sg.edu.nus.iss.edgp.workflow.management.dto.WorkflowStatus;
 import sg.edu.nus.iss.edgp.workflow.management.exception.WorkflowServiceException;
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.DynamicDynamoService;
@@ -30,13 +31,13 @@ class WorkflowServiceTest {
 	@Mock
 	private DynamicSQLService dynamicSQLService;
 
-	// Spy the SUT so we can stub private helpers like dynamoItemToJavaMap via
-	// spy/doReturn
 	@Spy
 	@InjectMocks
 	private WorkflowService service;
 
 	private static final String TABLE = "master_task_tracker";
+	private static final String TRACKER_TABLE = "master_task_tracker";
+	private static final String HEADER_TABLE = "master_header";
 
 	@BeforeEach
 	void setUp() throws Exception {
@@ -44,6 +45,8 @@ class WorkflowServiceTest {
 		Field f = WorkflowService.class.getDeclaredField("masterDataTaskTrackerTableName");
 		f.setAccessible(true);
 		f.set(service, TABLE);
+		setPrivateField(service, "masterDataTaskTrackerTableName", TRACKER_TABLE);
+		setPrivateField(service, "masterDataHeaderTableName", HEADER_TABLE);
 	}
 
 	@Test
@@ -189,5 +192,112 @@ class WorkflowServiceTest {
 		WorkflowServiceException ex = assertThrows(WorkflowServiceException.class,
 				() -> service.updateWorkflowStatus(raw));
 		assertTrue(ex.getMessage().contains("An error occurred while updating workflow status"));
+	}
+
+	private static void setPrivateField(Object target, String field, Object value) throws Exception {
+		Field f = target.getClass().getDeclaredField(field);
+		f.setAccessible(true);
+		f.set(target, value);
+	}
+
+	@Test
+	void retrieveDataList_happyPath() {
+		// Arrange
+		String fileId = "file-123";
+		String orgId = "org-9";
+		SearchRequest searchRequest = new SearchRequest();
+
+		Map<String, AttributeValue> item1 = new HashMap<>();
+		item1.put("id", AttributeValue.builder().s("r1").build());
+		item1.put("final_status", AttributeValue.builder().s("SUCCESS").build());
+
+		Map<String, AttributeValue> item2 = new HashMap<>();
+		item2.put("id", AttributeValue.builder().s("r2").build());
+		item2.put("final_status", AttributeValue.builder().s("FAIL").build());
+
+		Map<String, Object> retrieveResult = new HashMap<>();
+		retrieveResult.put("items", List.of(item1, item2));
+		retrieveResult.put("totalCount", 2);
+		when(dynamoService.retrieveDataList(TRACKER_TABLE, fileId, searchRequest, orgId)).thenReturn(retrieveResult);
+
+		Map<String, AttributeValue> headerRecord = new HashMap<>();
+		headerRecord.put("file_name", AttributeValue.builder().s("invoices_aug.csv").build());
+		when(dynamoService.getFileDataByFileId(HEADER_TABLE, fileId)).thenReturn(headerRecord);
+
+		// Spy conversion from Dynamo item to Java map
+		Map<String, Object> converted1 = new LinkedHashMap<>(
+				Map.of("id", "r1", "final_status", "SUCCESS", "amount", 100));
+		Map<String, Object> converted2 = new LinkedHashMap<>(Map.of("id", "r2", "final_status", "FAIL", "amount", 200));
+		doReturn(converted1).when(service).dynamoItemToJavaMap(item1);
+		doReturn(converted2).when(service).dynamoItemToJavaMap(item2);
+
+		// Act
+		List<Map<String, Object>> out = service.retrieveDataList(fileId, searchRequest, orgId);
+
+		// Assert: 3 elements (2 items + 1 summary at end)
+		assertEquals(3, out.size());
+
+		Map<String, Object> out1 = out.get(0);
+		Map<String, Object> out2 = out.get(1);
+		Map<String, Object> summary = out.get(2);
+
+		// fileName added to each item
+		assertEquals("invoices_aug.csv", out1.get("fileName"));
+		assertEquals("invoices_aug.csv", out2.get("fileName"));
+
+		// Original fields preserved
+		assertEquals("r1", out1.get("id"));
+		assertEquals("SUCCESS", out1.get("final_status"));
+		assertEquals(100, out1.get("amount"));
+
+		assertEquals("r2", out2.get("id"));
+		assertEquals("FAIL", out2.get("final_status"));
+		assertEquals(200, out2.get("amount"));
+
+		// Summary map contains counts and totalCount; is last element
+		assertEquals(2, summary.get("totalCount"));
+		assertEquals(1, summary.get("successRecords"));
+		assertEquals(1, summary.get("failedRecords"));
+	}
+
+	@Test
+	void retrieveDataList_blankFileId_skipsHeaderLookup() {
+		// Arrange
+		String fileId = "   "; // blank after trim check in caller
+		SearchRequest searchRequest = new SearchRequest();
+
+		Map<String, AttributeValue> item = Map.of("id", AttributeValue.builder().s("r1").build(), "final_status",
+				AttributeValue.builder().s("SUCCESS").build());
+		Map<String, Object> retrieveResult = new HashMap<>();
+		retrieveResult.put("items", List.of(item));
+		retrieveResult.put("totalCount", 1);
+		when(dynamoService.retrieveDataList(eq(TRACKER_TABLE), anyString(), any(), anyString()))
+				.thenReturn(retrieveResult);
+
+		doReturn(new LinkedHashMap<>(Map.of("id", "r1", "final_status", "SUCCESS"))).when(service)
+				.dynamoItemToJavaMap(anyMap());
+
+		// Act
+		List<Map<String, Object>> out = service.retrieveDataList(fileId, searchRequest, "org");
+
+		// Assert
+		verify(dynamoService, never()).getFileDataByFileId(anyString(), anyString());
+		assertNull(out.get(0).get("fileName"), "fileName should not be present when fileId is blank");
+		Map<String, Object> summary = out.get(1);
+		assertEquals(1, summary.get("totalCount"));
+		assertEquals(1, summary.get("successRecords"));
+		assertEquals(0, summary.get("failedRecords"));
+	}
+
+	@Test
+	void retrieveDataList_wrapsExceptions() {
+		// Arrange
+		when(dynamoService.retrieveDataList(anyString(), anyString(), any(), anyString()))
+				.thenThrow(new RuntimeException("boom"));
+
+		// Act & Assert
+		WorkflowServiceException ex = assertThrows(WorkflowServiceException.class,
+				() -> service.retrieveDataList("file", new SearchRequest(), "org"));
+		assertTrue(ex.getMessage().contains("An error occurred while retireving data list"));
 	}
 }
