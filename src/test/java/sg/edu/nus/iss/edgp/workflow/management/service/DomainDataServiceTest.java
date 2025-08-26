@@ -167,4 +167,65 @@ public class DomainDataServiceTest {
 		assertSame(root, ex.getCause());
 
 	}
+
+	@Test
+	void retrieveDetail_success() {
+		String domain = "customer";
+		String id = "42";
+
+		Map<String, Object> record = new HashMap<>();
+		record.put("id", 42L);
+		record.put("name", "Alice");
+
+		when(domainDataRepository.retrieveDetailDomainDataRecordById(domain, id)).thenReturn(record);
+
+		Map<String, Object> result = service.retrieveDetailDomainDataRecordById(domain, id);
+
+		assertSame(record, result, "Should return the exact map from repository");
+
+		verify(domainDataRepository).retrieveDetailDomainDataRecordById(domain, id);
+	}
+
+	@Test
+	void retrieveDetail_nullResult() {
+		String domain = "orders";
+		String id = "abc";
+
+		when(domainDataRepository.retrieveDetailDomainDataRecordById(domain, id)).thenReturn(null);
+
+		DomainDataServiceException ex = assertThrows(DomainDataServiceException.class,
+				() -> service.retrieveDetailDomainDataRecordById(domain, id));
+
+		assertEquals("Unexpected error retrieving domain data record by id", ex.getMessage());
+
+	}
+
+	@Test
+	void retrieveDetail_emptyMap() {
+		String domain = "orders";
+		String id = "empty-1";
+
+		when(domainDataRepository.retrieveDetailDomainDataRecordById(domain, id)).thenReturn(Collections.emptyMap());
+
+		DomainDataServiceException ex = assertThrows(DomainDataServiceException.class,
+				() -> service.retrieveDetailDomainDataRecordById(domain, id));
+
+		assertEquals("Unexpected error retrieving domain data record by id", ex.getMessage());
+	}
+
+	@Test
+	void retrieveDetail_repoThrows() {
+		String domain = "invoices";
+		String id = "500";
+		RuntimeException root = new RuntimeException("db down");
+
+		when(domainDataRepository.retrieveDetailDomainDataRecordById(domain, id)).thenThrow(root);
+
+		DomainDataServiceException ex = assertThrows(DomainDataServiceException.class,
+				() -> service.retrieveDetailDomainDataRecordById(domain, id));
+
+		assertEquals("Unexpected error retrieving domain data record by id", ex.getMessage());
+		assertSame(root, ex.getCause());
+
+	}
 }
