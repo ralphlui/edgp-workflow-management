@@ -300,4 +300,59 @@ class WorkflowServiceTest {
 				() -> service.retrieveDataList("file", new SearchRequest(), "org"));
 		assertTrue(ex.getMessage().contains("An error occurred while retireving data list"));
 	}
+	
+	
+	@Test
+    @DisplayName("Happy path: returns converted map when data exists")
+    void retrieveDataRecordDetailbyWorkflowId_success() {
+        // Arrange
+        String workflowStatusId = "wf-123";
+        Map<String, AttributeValue> record = new HashMap<>();
+        record.put("id", AttributeValue.builder().s("wf-123").build());
+        record.put("final_status", AttributeValue.builder().s("SUCCESS").build());
+
+        when(dynamoService.getDataByWorkflowStatusId(TRACKER_TABLE, workflowStatusId)).thenReturn(record);
+
+        Map<String, Object> converted = new HashMap<>();
+        converted.put("id", "wf-123");
+        converted.put("final_status", "SUCCESS");
+        doReturn(converted).when(service).dynamoItemToJavaMap(record);
+
+        // Act
+        Map<String, Object> out = service.retrieveDataRecordDetailbyWorkflowId(workflowStatusId);
+
+        // Assert
+        assertEquals("wf-123", out.get("id"));
+        assertEquals("SUCCESS", out.get("final_status"));
+    }
+
+    @Test
+    @DisplayName("Throws WorkflowServiceException when no data found")
+    void retrieveDataRecordDetailbyWorkflowId_noData_throws() {
+        // Arrange
+        when(dynamoService.getDataByWorkflowStatusId(TRACKER_TABLE, "wf-404"))
+                .thenReturn(Collections.emptyMap());
+
+        // Act & Assert
+        WorkflowServiceException ex = assertThrows(
+                WorkflowServiceException.class,
+                () -> service.retrieveDataRecordDetailbyWorkflowId("wf-404")
+        );
+        assertTrue(ex.getMessage().contains("error"));
+    }
+
+    @Test
+    @DisplayName("Wraps unexpected exceptions into WorkflowServiceException")
+    void retrieveDataRecordDetailbyWorkflowId_wrapsException() {
+        // Arrange
+        when(dynamoService.getDataByWorkflowStatusId(TRACKER_TABLE, "wf-err"))
+                .thenThrow(new RuntimeException("boom"));
+
+        // Act & Assert
+        WorkflowServiceException ex = assertThrows(
+                WorkflowServiceException.class,
+                () -> service.retrieveDataRecordDetailbyWorkflowId("wf-err")
+        );
+        assertTrue(ex.getMessage().contains("An error occurred while retireving workflow data record by id"));
+    }
 }
