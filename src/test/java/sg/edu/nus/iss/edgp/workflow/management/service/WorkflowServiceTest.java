@@ -67,7 +67,7 @@ class WorkflowServiceTest {
 		stored.put("id", AttributeValue.builder().s("wf-123").build());
 		stored.put("created_date", AttributeValue.builder().s("2025-08-01T12:00:00Z").build());
 		stored.put("final_status", AttributeValue.builder().s("PENDING").build());
-		stored.put("rule_status", AttributeValue.builder().s("PENDING").build());
+		stored.put("dataquality_status", AttributeValue.builder().s("PENDING").build());
 		stored.put("business_key", AttributeValue.builder().s("BK-9").build());
 		stored.put("amount", AttributeValue.builder().n("42").build());
 		when(dynamoService.getDataByWorkflowStatusId(TABLE, "wf-123")).thenReturn(stored);
@@ -87,14 +87,14 @@ class WorkflowServiceTest {
 		ArgumentCaptor<String> domainTableCaptor = ArgumentCaptor.forClass(String.class);
 
 		// Act
-		service.updateWorkflowStatus(raw);
+		service.updateDataQualityWorkflowStatus(raw);
 
 		// Assert: workflow status persisted with expected fields
 		verify(dynamoService).updateWorkflowStatus(eq(TABLE), wsCaptor.capture());
 		WorkflowStatus saved = wsCaptor.getValue();
 		assertEquals("wf-123", saved.getId());
 		assertEquals("SUCCESS", saved.getFinalStatus());
-		assertEquals("SUCCESS", saved.getRuleStatus());
+		assertEquals("SUCCESS", saved.getDataQualityStatus());
 		assertEquals(List.copyOf(failedValidations), saved.getFailedValidations());
 
 		// Assert: dynamicSQLService called with cleaned map (keys removed)
@@ -103,7 +103,7 @@ class WorkflowServiceTest {
 		assertFalse(cleaned.containsKey("id"), "id should be removed");
 		assertFalse(cleaned.containsKey("created_date"), "created_date should be removed");
 		assertFalse(cleaned.containsKey("final_status"), "final_status should be removed");
-		assertFalse(cleaned.containsKey("rule_status"), "rule_status should be removed");
+		assertFalse(cleaned.containsKey("dataquality_status"), "rule_status should be removed");
 		// business fields remain
 		assertEquals("BK-9", cleaned.get("business_key"));
 		assertEquals(42, cleaned.get("amount"));
@@ -129,7 +129,7 @@ class WorkflowServiceTest {
 		doReturn(new HashMap<>(Map.of("business_key", "BK-1"))).when(service).dynamoItemToJavaMap(anyMap());
 
 		// Act
-		service.updateWorkflowStatus(raw);
+		service.updateDataQualityWorkflowStatus(raw);
 
 		// Assert
 		verify(dynamoService).createTable(TABLE);
@@ -149,7 +149,7 @@ class WorkflowServiceTest {
 
 		// Act & Assert
 		WorkflowServiceException ex = assertThrows(WorkflowServiceException.class,
-				() -> service.updateWorkflowStatus(raw));
+				() -> service.updateDataQualityWorkflowStatus(raw));
 		assertTrue(ex.getMessage().contains("error"));
 	}
 
@@ -167,7 +167,7 @@ class WorkflowServiceTest {
 				.thenReturn(Map.of("id", AttributeValue.builder().s("wf-123").build()));
 
 		// Act
-		service.updateWorkflowStatus(raw);
+		service.updateDataQualityWorkflowStatus(raw);
 
 		// Assert
 		verify(dynamicSQLService, never()).buildCreateTableSQL(anyMap(), anyString());
@@ -190,7 +190,7 @@ class WorkflowServiceTest {
 
 		// Act & Assert
 		WorkflowServiceException ex = assertThrows(WorkflowServiceException.class,
-				() -> service.updateWorkflowStatus(raw));
+				() -> service.updateDataQualityWorkflowStatus(raw));
 		assertTrue(ex.getMessage().contains("An error occurred while updating workflow status"));
 	}
 
