@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
+import sg.edu.nus.iss.edgp.workflow.management.aws.service.SQSDataQualityRequestService;
 import sg.edu.nus.iss.edgp.workflow.management.dto.SearchRequest;
 import sg.edu.nus.iss.edgp.workflow.management.dto.WorkflowStatus;
 import sg.edu.nus.iss.edgp.workflow.management.exception.WorkflowServiceException;
@@ -26,6 +27,7 @@ public class WorkflowService implements IWorkflowService {
 	private final DynamicDynamoService dynamoService;
 	private final ProcessStatusObserverService processStatusObserverService;
 	private final DynamicSQLService dynamicSQLService;
+	private final SQSDataQualityRequestService sqsDataQualityRequestService;
 	private static final Logger logger = LoggerFactory.getLogger(WorkflowService.class);
 
 	@Value("${aws.dynamodb.table.master.data.task}")
@@ -36,7 +38,62 @@ public class WorkflowService implements IWorkflowService {
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public void updateWorkflowStatus(Map<String, Object> rawData) {
+	public void updateDataQualityWorkflowStatus(Map<String, Object> rawData) {
+
+		try {
+			String status = (String) rawData.get("status");
+			Map<String, Object> data = (Map<String, Object>) rawData.get("data");
+			List<Map<String, Object>> failedValidations = (List<Map<String, Object>>) rawData.get("failed_validations");
+			String workflowStatusId = "";
+
+			if (data != null) {
+				workflowStatusId = (String) data.get("id");
+			}
+
+			// workflow status table
+			if (!dynamoService.tableExists(masterDataTaskTrackerTableName.trim())) {
+				dynamoService.createTable(masterDataTaskTrackerTableName.trim());
+			}
+
+			Map<String, AttributeValue> workflowStatusData = dynamoService
+					.getDataByWorkflowStatusId(masterDataTaskTrackerTableName.trim(), workflowStatusId);
+
+			if (workflowStatusData == null || workflowStatusData.isEmpty()) {
+
+				throw new WorkflowServiceException(
+						"Workflow status update aborted: existing workflow status data not found.");
+
+			} else {
+				logger.info("Successfully retrieve work flow data by workflow id");
+				WorkflowStatus workflowStatus = new WorkflowStatus();
+				
+				
+				Optional.ofNullable(status).filter(s -> !s.isBlank()).ifPresent(s -> {
+					workflowStatus.setFinalStatus(s);
+					workflowStatus.setDataQualityStatus(s);
+				});
+
+				Optional.ofNullable(failedValidations).filter(list -> !list.isEmpty())
+						.ifPresent(list -> workflowStatus.setFailedValidations(List.copyOf(list)));
+
+				workflowStatus.setId(workflowStatusId);
+				dynamoService.updateWorkflowStatus(masterDataTaskTrackerTableName.trim(), workflowStatus);
+				logger.info("Updated data quality workflow status");
+				String domainTableName = (String) rawData.get("domain_name");
+				insetCleanMasterData(status, domainTableName, workflowStatusData);
+				logger.info("Successfully inserted clean data to master data db");
+
+			}
+		} catch (Exception ex) {
+			logger.error("An error occurred while updating workflow status.... {}", ex);
+			throw new WorkflowServiceException("An error occurred while updating workflow status", ex);
+		}
+
+	}
+	
+	@SuppressWarnings("unchecked")
+	@Override
+	public void updateRuleWorkflowStatus(Map<String, Object> rawData) {
 
 		try {
 			String status = (String) rawData.get("status");
@@ -65,8 +122,10 @@ public class WorkflowService implements IWorkflowService {
 				logger.info("Successfully retrieve work flow data by workflow id");
 				WorkflowStatus workflowStatus = new WorkflowStatus();
 				Optional.ofNullable(status).filter(s -> !s.isBlank()).ifPresent(s -> {
-					workflowStatus.setFinalStatus(s);
 					workflowStatus.setRuleStatus(s);
+					if (s != null && Status.fail.toString().equals(s.toLowerCase())) {
+						workflowStatus.setFinalStatus(s);
+					}
 				});
 
 				Optional.ofNullable(failedValidations).filter(list -> !list.isEmpty())
@@ -74,9 +133,14 @@ public class WorkflowService implements IWorkflowService {
 
 				workflowStatus.setId(workflowStatusId);
 				dynamoService.updateWorkflowStatus(masterDataTaskTrackerTableName.trim(), workflowStatus);
-				String domainTableName = (String) rawData.get("domain_name");
-				insetCleanMasterData(status, domainTableName, workflowStatusData);
-				logger.info("Successfully inserted clean data to master data db");
+				logger.info("Updated rule workflow status");
+				
+				if (status != null && Status.success.toString().equals(status.toLowerCase())) {
+					sqsDataQualityRequestService.forwardToDataQualityRequestQueue(rawData);
+					logger.info("Sent data quality request queue");
+					
+				}
+				
 
 			}
 		} catch (Exception ex) {

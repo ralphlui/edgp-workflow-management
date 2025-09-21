@@ -12,6 +12,7 @@ public class WorkflowStatus {
 
 	private String id;
 	private String ruleStatus;
+	private String dataQualityStatus;
 	private String finalStatus = "";
 	private List<Map<String, Object>> failedValidations;
 }

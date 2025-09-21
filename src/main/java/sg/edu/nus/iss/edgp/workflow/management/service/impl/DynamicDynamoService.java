@@ -172,6 +172,15 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 				values.put(":rs", AttributeValue.builder().s(workflowStatus.getRuleStatus()).build());
 				set.append("#rs = :rs");
 			}
+			
+			if (workflowStatus.getDataQualityStatus() != null) {
+			    if (n++ > 0) set.append(", ");
+			    names.put("#ds", "dataquality_status");
+			    values.put(":ds", AttributeValue.builder()
+			            .s(workflowStatus.getDataQualityStatus())
+			            .build());
+			    set.append("#ds = :ds");   // <-- use the alias here
+			}
 
 			if (workflowStatus.getFinalStatus() != null) {
 				if (n++ > 0)
