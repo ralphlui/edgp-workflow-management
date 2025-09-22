@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+
 import lombok.RequiredArgsConstructor;
 import sg.edu.nus.iss.edgp.workflow.management.aws.service.SQSDataQualityRequestService;
 import sg.edu.nus.iss.edgp.workflow.management.dto.SearchRequest;
@@ -28,6 +29,8 @@ public class WorkflowService implements IWorkflowService {
 	private final ProcessStatusObserverService processStatusObserverService;
 	private final DynamicSQLService dynamicSQLService;
 	private final SQSDataQualityRequestService sqsDataQualityRequestService;
+	private final PayloadBuilderService payloadBuilderService;
+
 	private static final Logger logger = LoggerFactory.getLogger(WorkflowService.class);
 
 	@Value("${aws.dynamodb.table.master.data.task}")
@@ -136,7 +139,10 @@ public class WorkflowService implements IWorkflowService {
 				logger.info("Updated rule workflow status");
 				
 				if (status != null && Status.success.toString().equals(status.toLowerCase())) {
-					sqsDataQualityRequestService.forwardToDataQualityRequestQueue(rawData);
+					Map<String, Object> workflowStatusFields = dynamoItemToJavaMap(workflowStatusData);
+					Map<String, Object> dataQaulityPayLoad = payloadBuilderService.buildDataQualityPayLoad(rawData, workflowStatusFields);
+					sqsDataQualityRequestService.forwardToDataQualityRequestQueue(dataQaulityPayLoad);
+					
 					logger.info("Sent data quality request queue");
 					
 				}

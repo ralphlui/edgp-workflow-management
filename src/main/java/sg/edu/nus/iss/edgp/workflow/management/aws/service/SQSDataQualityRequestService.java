@@ -27,10 +27,6 @@ public class SQSDataQualityRequestService {
 
 	public void forwardToDataQualityRequestQueue(Map<String, Object> payload) {
 		try {
-//			if (!payload.containsKey("data_entry")) {
-//				logger.warn("Payload missing required field 'data_entry'");
-//				return;
-//			}
 
 			String message = objectMapper.writeValueAsString(payload);
 
