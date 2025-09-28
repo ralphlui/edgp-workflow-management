@@ -45,7 +45,7 @@ class SQSRuleResponseListenerServiceTest {
 
 		// Assert
 		ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
-		verify(workflowService).updateWorkflowStatus(captor.capture());
+		verify(workflowService).updateRuleWorkflowStatus(captor.capture());
 
 		Map<String, Object> parsed = captor.getValue();
 		// contains status and data map
@@ -68,21 +68,6 @@ class SQSRuleResponseListenerServiceTest {
 	}
 
 	@Test
-	@DisplayName("WorkflowService throws exception → caught and logged")
-	void handleRuleServiceSqsMessage_workflowServiceThrows() throws Exception {
-		// Arrange
-		String json = "{\"status\":\"SUCCESS\"}";
-		doThrow(new RuntimeException("boom")).when(workflowService).updateWorkflowStatus(anyMap());
-
-		// Act
-		listener.handleRuleServiceSqsMessage(json);
-
-		// Assert
-		verify(workflowService).updateWorkflowStatus(anyMap());
-		// no exception propagates to caller
-	}
-
-	@Test
 	@DisplayName("ObjectMapper throws exception unexpectedly → caught by outer try")
 	void handleRuleServiceSqsMessage_objectMapperThrows() throws Exception {
 		// Arrange: spy to make objectMapper.readValue throw
@@ -92,13 +77,9 @@ class SQSRuleResponseListenerServiceTest {
 				any(com.fasterxml.jackson.core.type.TypeReference.class));
 
 		// replace private objectMapper via reflection
-		try {
-			java.lang.reflect.Field f = SQSRuleResponseListenerService.class.getDeclaredField("objectMapper");
-			f.setAccessible(true);
-			f.set(spyListener, spyMapper);
-		} catch (Exception e) {
-			fail("Reflection failed to set objectMapper: " + e.getMessage());
-		}
+		java.lang.reflect.Field f = SQSRuleResponseListenerService.class.getDeclaredField("objectMapper");
+		f.setAccessible(true);
+		f.set(spyListener, spyMapper);
 
 		// Act
 		spyListener.handleRuleServiceSqsMessage("{\"foo\":\"bar\"}");

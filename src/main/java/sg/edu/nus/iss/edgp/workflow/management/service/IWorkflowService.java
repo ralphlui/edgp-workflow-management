@@ -7,12 +7,14 @@ import sg.edu.nus.iss.edgp.workflow.management.dto.SearchRequest;
 
 public interface IWorkflowService {
 
-	void updateWorkflowStatus(Map<String, Object> data);
+	void updateDataQualityWorkflowStatus(Map<String, Object> data);
 	
 	boolean isAllDataProcessed(String fileId);
  
 	List<Map<String, Object>> retrieveDataList(String fileId, SearchRequest searchRequest, String userOrdId);
 	
 	Map<String, Object> retrieveDataRecordDetailbyWorkflowId(String workflowStatusId);
+	
+	public void updateRuleWorkflowStatus(Map<String, Object> rawData);
  
 }
