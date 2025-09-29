@@ -212,6 +212,10 @@ public class DynamicSQLRepository {
 
 	    logger.info("Inserted archived SQL row: {}", insertSql);
 	    jdbcTemplate.update(insertSql, primaryID, idValue, message);
+	    
+	    String updateSql = "UPDATE `" + dn + "` SET `is_archived` = ? WHERE `id` = ?";
+	    logger.info("Updated archived status: {}", updateSql);
+	    jdbcTemplate.update(updateSql, true, idValue);
 	}
 	
 	public void updateColumnValue(String tableName, String columnName, String idValue, Object fromValue, Object toValue)

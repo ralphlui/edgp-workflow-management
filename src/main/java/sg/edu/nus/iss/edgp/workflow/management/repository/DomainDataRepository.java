@@ -23,14 +23,25 @@ public class DomainDataRepository {
 	private JdbcTemplate jdbcTemplate;
 	private static final Logger logger = LoggerFactory.getLogger(DomainDataRepository.class);
 
-	public List<Map<String, Object>> findAllDomainDataList(String tableName, String userOrgId, String fileId) {
+	public List<Map<String, Object>> findAllDomainDataList(String tableName, String userOrgId, String fileId, Boolean includeArchive) {
 		if (tableName == null || tableName.isBlank()) {
 			throw new IllegalArgumentException("Table name is required");
 		}
 
 		tableName = tableName.toLowerCase();
-		StringBuilder sql = new StringBuilder("SELECT * FROM ").append(backtick(tableName)).append(" WHERE ")
-				.append(backtick("organization_id")).append(" = ?");
+		StringBuilder sql = new StringBuilder();
+		if (includeArchive == null || includeArchive) {
+			 sql = new StringBuilder("SELECT * FROM ").append(backtick(tableName)).append(" WHERE ")
+					.append(backtick("organization_id")).append(" = ?");
+		} else {
+			 sql = new StringBuilder("SELECT * FROM ")
+					    .append(backtick(tableName))
+					    .append(" WHERE ")
+					    .append(backtick("organization_id")).append(" = ?")
+					    .append(" AND ")
+					    .append(backtick("is_archived")).append(" = false");
+		}
+		
 
 		List<Object> args = new ArrayList<>();
 		args.add(userOrgId);

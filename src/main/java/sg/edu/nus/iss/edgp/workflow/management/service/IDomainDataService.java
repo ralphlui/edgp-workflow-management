@@ -8,10 +8,10 @@ import org.springframework.data.domain.Pageable;
 public interface IDomainDataService {
 
 	Map<Long, List<Map<String, Object>>> retrieveAllDomainDataList(String domainName, String userOrgId,
-			String fileId);
+			String fileId,  Boolean includeArchive);
 	
 	Map<Long, List<Map<String, Object>>> retrievePaginatedDomainDataList(String domainName, String userOrgId,
-			String fileId, Pageable pageable);
+			String fileId, Pageable pageable,  Boolean includeArchive);
 	
 	Map<String, Object> retrieveDetailDomainDataRecordById(String domainName, String id);
 }
