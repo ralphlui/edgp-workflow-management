@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 
 @Repository
@@ -188,6 +189,7 @@ public class DynamicSQLRepository {
 	    return s;
 	}
 	
+	@Transactional(rollbackFor = Exception.class)
 	public void insertArchiveData(String domainName, String idValue, String message) throws SQLException {
 	    if (domainName == null || domainName.trim().isEmpty()) {
 	        throw new IllegalArgumentException("Table name cannot be null or empty.");
