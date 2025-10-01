@@ -25,22 +25,24 @@ class DomainDataRepositoryTest {
 
 	@Test
 	void findAllDomainDataList_throwsWhenTableBlank() {
-		assertThrows(IllegalArgumentException.class, () -> repo.findAllDomainDataList("  ", "org-1", null));
-		assertThrows(IllegalArgumentException.class, () -> repo.findAllDomainDataList(null, "org-1", "f1"));
+		assertThrows(IllegalArgumentException.class, () -> repo.findAllDomainDataList("  ", "org-1", null, Boolean.TRUE));
+		assertThrows(IllegalArgumentException.class, () -> repo.findAllDomainDataList(null, "org-1", "f1", Boolean.TRUE));
 	}
 
+	
 	@Test
-	void findAllDomainDataList_withoutFileId_buildsSqlAndArgs() {
-		String table = "MyTable";
-		String expectedSql = "SELECT * FROM `mytable` WHERE `organization_id` = ?";
+	void findAllDomainDataList_withoutFileId_buildsSqlAndArgs1() {
+	    String table = "MyTable";
+	    String expectedSql = "SELECT * FROM `mytable` WHERE `organization_id` = ?";
 
-		List<Map<String, Object>> rows = List.of(Map.of("id", "1"));
-		when(jdbcTemplate.queryForList(eq(expectedSql), aryEq(new Object[] { "ORG-9" }))).thenReturn(rows);
+	    List<Map<String, Object>> rows = List.of(Map.of("id", "1"));
+	    when(jdbcTemplate.queryForList(eq(expectedSql), aryEq(new Object[] { "ORG-9" }))).thenReturn(rows);
 
-		List<Map<String, Object>> out = repo.findAllDomainDataList(table, "ORG-9", null);
+	    // Use TRUE (or null) instead of anyBoolean()
+	    List<Map<String, Object>> out = repo.findAllDomainDataList(table, "ORG-9", null, Boolean.TRUE);
 
-		assertEquals(rows, out);
-		verify(jdbcTemplate).queryForList(eq(expectedSql), aryEq(new Object[] { "ORG-9" }));
+	    assertEquals(rows, out);
+	    verify(jdbcTemplate).queryForList(eq(expectedSql), aryEq(new Object[] { "ORG-9" }));
 	}
 
 	@Test
@@ -49,9 +51,9 @@ class DomainDataRepositoryTest {
 		String expectedSql = "SELECT * FROM `data_tbl` WHERE `organization_id` = ? AND `file_id` = ?";
 
 		List<Map<String, Object>> rows = List.of(Map.of("id", "22"));
-		when(jdbcTemplate.queryForList(eq(expectedSql), aryEq(new Object[] { "ORG-X", "F-77" }))).thenReturn(rows);
+		when(jdbcTemplate.queryForList(eq(expectedSql), aryEq(new Object[] { "ORG-X", "F-77"}))).thenReturn(rows);
 
-		List<Map<String, Object>> out = repo.findAllDomainDataList(table, "ORG-X", "F-77");
+		List<Map<String, Object>> out = repo.findAllDomainDataList(table, "ORG-X", "F-77", Boolean.TRUE);
 
 		assertEquals(rows, out);
 		verify(jdbcTemplate).queryForList(eq(expectedSql), aryEq(new Object[] { "ORG-X", "F-77" }));

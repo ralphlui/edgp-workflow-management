@@ -46,12 +46,12 @@ public class DomainDataServiceTest {
 		repoData.add(row1);
 		repoData.add(row2);
 
-		when(domainDataRepository.findAllDomainDataList(domain, orgId, fileId)).thenReturn(repoData);
+		when(domainDataRepository.findAllDomainDataList(domain, orgId, fileId, Boolean.TRUE)).thenReturn(repoData);
 
-		Map<Long, List<Map<String, Object>>> result = service.retrieveAllDomainDataList(domain, orgId, fileId);
+		Map<Long, List<Map<String, Object>>> result = service.retrieveAllDomainDataList(domain, orgId, fileId, Boolean.TRUE);
 
 		// verify repository called with exact args
-		verify(domainDataRepository).findAllDomainDataList(domain, orgId, fileId);
+		verify(domainDataRepository).findAllDomainDataList(domain, orgId, fileId, Boolean.TRUE);
 
 		// assert result has exactly one entry keyed by total count
 		assertEquals(1, result.size(), "result should contain exactly one entry");
@@ -69,9 +69,9 @@ public class DomainDataServiceTest {
 		String orgId = "org-xyz";
 		String fileId = "file-empty";
 
-		when(domainDataRepository.findAllDomainDataList(domain, orgId, fileId)).thenReturn(Collections.emptyList());
+		when(domainDataRepository.findAllDomainDataList(domain, orgId, fileId, Boolean.FALSE)).thenReturn(Collections.emptyList());
 
-		Map<Long, List<Map<String, Object>>> result = service.retrieveAllDomainDataList(domain, orgId, fileId);
+		Map<Long, List<Map<String, Object>>> result = service.retrieveAllDomainDataList(domain, orgId, fileId, Boolean.FALSE);
 
 		assertEquals(1, result.size());
 		assertTrue(result.containsKey(0L));
@@ -86,10 +86,10 @@ public class DomainDataServiceTest {
 		String fileId = "file-err";
 
 		RuntimeException root = new RuntimeException("db down");
-		when(domainDataRepository.findAllDomainDataList(domain, orgId, fileId)).thenThrow(root);
+		when(domainDataRepository.findAllDomainDataList(domain, orgId, fileId, Boolean.FALSE)).thenThrow(root);
 
 		DomainDataServiceException ex = assertThrows(DomainDataServiceException.class,
-				() -> service.retrieveAllDomainDataList(domain, orgId, fileId));
+				() -> service.retrieveAllDomainDataList(domain, orgId, fileId, Boolean.FALSE));
 
 		assertEquals("An error occurred while retrieving all data list", ex.getMessage());
 		assertSame(root, ex.getCause());
@@ -119,7 +119,7 @@ public class DomainDataServiceTest {
 		when(domainDataRepository.findPaginatedDomainDataList(domain, orgId, fileId, pageable)).thenReturn(page);
 
 		Map<Long, List<Map<String, Object>>> result = service.retrievePaginatedDomainDataList(domain, orgId, fileId,
-				pageable);
+				pageable, Boolean.TRUE);
 
 		// repository called with exact args
 		verify(domainDataRepository).findPaginatedDomainDataList(domain, orgId, fileId, pageable);
@@ -142,7 +142,7 @@ public class DomainDataServiceTest {
 		when(domainDataRepository.findPaginatedDomainDataList(domain, orgId, fileId, pageable)).thenReturn(emptyPage);
 
 		Map<Long, List<Map<String, Object>>> result = service.retrievePaginatedDomainDataList(domain, orgId, fileId,
-				pageable);
+				pageable, Boolean.TRUE);
 
 		assertEquals(1, result.size());
 		assertTrue(result.containsKey(0L));
@@ -161,7 +161,7 @@ public class DomainDataServiceTest {
 		when(domainDataRepository.findPaginatedDomainDataList(domain, orgId, fileId, pageable)).thenThrow(root);
 
 		DomainDataServiceException ex = assertThrows(DomainDataServiceException.class,
-				() -> service.retrievePaginatedDomainDataList(domain, orgId, fileId, pageable));
+				() -> service.retrievePaginatedDomainDataList(domain, orgId, fileId, pageable, Boolean.TRUE));
 
 		assertEquals("An error occurred while retrieving all data list", ex.getMessage());
 		assertSame(root, ex.getCause());
