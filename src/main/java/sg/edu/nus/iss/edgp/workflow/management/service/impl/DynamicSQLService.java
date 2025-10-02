@@ -52,9 +52,13 @@ public class DynamicSQLService implements IDynamicSQLService {
 
 			String columnDefs = result.toString();
 
-			String staticColumns = String.join(", ", "`id` VARCHAR(36) PRIMARY KEY",
-					"`created_date` TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-					"`updated_date` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
+			
+			String staticColumns = String.join(", ", 
+				    "`id` VARCHAR(36) PRIMARY KEY",
+				    "`created_date` TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+				    "`updated_date` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+				    "`is_archived` BOOLEAN DEFAULT FALSE"
+				);
 
 			String query = "CREATE TABLE IF NOT EXISTS `" + tableName + "` (" + staticColumns + ", " + columnDefs + ")";
 			jdbcTemplate.execute(query);

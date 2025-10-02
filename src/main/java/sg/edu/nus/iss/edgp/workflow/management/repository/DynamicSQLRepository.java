@@ -15,18 +15,24 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
+
 
 @Repository
 public class DynamicSQLRepository {
 
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
+	private static final Logger logger = LoggerFactory.getLogger(DynamicSQLRepository.class);
 
 	public boolean tableExists(String schema, String tableName) {
 		String query = "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ? AND table_name = ?";
@@ -149,5 +155,90 @@ public class DynamicSQLRepository {
 		}
 
 		return columnTypes;
+	}
+	
+	public void createArchiveTable(String domainName, String tableName) throws SQLException {
+	   
+	    if (domainName.isEmpty()) {
+	        throw new IllegalArgumentException("Domain name cannot be empty after sanitization.");
+	    }
+
+	    String idRefCol  = domainName + "_id"; // as requested
+	    logger.info("Archive Domain id column", idRefCol);
+
+	    String sql =
+	        "CREATE TABLE IF NOT EXISTS `" + tableName + "` ("
+	      +   " `id` VARCHAR(36) PRIMARY KEY,"   
+	      + "  `" + idRefCol + "` VARCHAR(191) NOT NULL,"
+	      + "  `message` TEXT NULL,"
+	      + "  `archived_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"
+	      + ")";
+
+	    // Optional: log for visibility
+	    logger.info("Archived SQL: {}", sql);
+
+	    jdbcTemplate.execute(sql);
+	}
+
+	private static String sanitizeIdentifier(String raw) {
+	    if (raw == null) return "";
+	    String s = raw.trim().toLowerCase();
+	    s = s.replaceAll("[^a-z0-9_]", "_");
+	    s = s.replaceAll("_+", "_");
+	    s = s.replaceAll("^_+", "").replaceAll("_+$", "");
+	    return s;
+	}
+	
+	@Transactional(rollbackFor = Exception.class)
+	public void insertArchiveData(String domainName, String idValue, String message) throws SQLException {
+	    if (domainName == null || domainName.trim().isEmpty()) {
+	        throw new IllegalArgumentException("Table name cannot be null or empty.");
+	    }
+	    
+	    String schema = jdbcTemplate.getDataSource().getConnection().getCatalog();
+	    String dn = sanitizeIdentifier(domainName);
+	    String archiveTable = dn + "_archive";
+		if (!tableExists(schema, archiveTable)) {
+			createArchiveTable(dn, archiveTable);
+		}
+	    if (idValue == null) {
+	        throw new IllegalArgumentException("ID value cannot be null.");
+	    }
+
+	    String idRefCol  = dn + "_id";
+	    String primaryID = UUID.randomUUID().toString();
+	    
+	    // Insert into archive table
+	    String insertSql = "INSERT INTO `" + archiveTable + "` (`id`, `" + idRefCol + "`, `message`, `archived_at`) "
+	            + "VALUES (?, ?, ?, NOW())";
+
+	    logger.info("Inserted archived SQL row: {}", insertSql);
+	    jdbcTemplate.update(insertSql, primaryID, idValue, message);
+	    
+	    String updateSql = "UPDATE `" + dn + "` SET `is_archived` = ? WHERE `id` = ?";
+	    logger.info("Updated archived status: {}", updateSql);
+	    jdbcTemplate.update(updateSql, true, idValue);
+	}
+	
+	public void updateColumnValue(String tableName, String columnName, String idValue, Object fromValue, Object toValue)
+			throws SQLException {
+		if (tableName == null || tableName.isBlank()) {
+			throw new IllegalArgumentException("Table name cannot be null or empty.");
+		}
+		if (columnName == null || columnName.isBlank()) {
+			throw new IllegalArgumentException("Column name cannot be null or empty.");
+		}
+		if (idValue == null || idValue.isBlank()) {
+			throw new IllegalArgumentException("ID value cannot be null or empty.");
+		}
+		if (fromValue == null) {
+			throw new IllegalArgumentException("From-value cannot be null.");
+		}
+
+
+		String sql = "UPDATE " + tableName + " SET " + columnName + " = ? " + "WHERE id = ? AND " + columnName + " = ?";
+
+
+		jdbcTemplate.update(sql, toValue, idValue, fromValue);
 	}
 }

@@ -82,12 +82,12 @@ public class DomainDataController {
 			}
 
 			if (searchRequest.getPage() == null) {
-				resultMap = domainDataService.retrieveAllDomainDataList(domainName, userOrgId, fileId);
+				resultMap = domainDataService.retrieveAllDomainDataList(domainName, userOrgId, fileId, searchRequest.getIncludeArchived());
 				logger.info("all domain data list size {}", resultMap.size());
 			} else {
 				Pageable pageable = PageRequest.of(searchRequest.getPage() - 1, searchRequest.getSize(),
 						Sort.by("updated_date").ascending());
-				resultMap = domainDataService.retrievePaginatedDomainDataList(domainName, userOrgId, fileId, pageable);
+				resultMap = domainDataService.retrievePaginatedDomainDataList(domainName, userOrgId, fileId, pageable, searchRequest.getIncludeArchived());
 				logger.info("paginated domain data list size {}", resultMap.size());
 			}
 

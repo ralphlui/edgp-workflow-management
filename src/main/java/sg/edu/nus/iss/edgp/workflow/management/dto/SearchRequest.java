@@ -17,5 +17,7 @@ public class SearchRequest {
 	private String status;
 	
 	private String domainName;
+	
+	private Boolean includeArchived;
 
 }

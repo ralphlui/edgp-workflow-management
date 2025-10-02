@@ -24,11 +24,11 @@ public class DomainDataService implements IDomainDataService {
 
 	@Override
 	public Map<Long, List<Map<String, Object>>> retrieveAllDomainDataList(String domainName, String userOrgId,
-			String fileId) {
+			String fileId, Boolean includeArchive) {
 		try {
 
 			List<Map<String, Object>> domainDataList = domainDataRepository.findAllDomainDataList(domainName, userOrgId,
-					fileId);
+					fileId, includeArchive);
 			long totalRecord = domainDataList.size();
 			Map<Long, List<Map<String, Object>>> result = new HashMap<>();
 			result.put(totalRecord, domainDataList);
@@ -44,7 +44,7 @@ public class DomainDataService implements IDomainDataService {
 
 	@Override
 	public Map<Long, List<Map<String, Object>>> retrievePaginatedDomainDataList(String domainName, String userOrgId,
-			String fileId, Pageable pageable) {
+			String fileId, Pageable pageable,  Boolean includeArchive) {
 		try {
 
 			Page<Map<String, Object>> domainDataList = domainDataRepository.findPaginatedDomainDataList(domainName,

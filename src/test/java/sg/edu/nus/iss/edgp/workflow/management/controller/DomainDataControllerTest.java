@@ -87,11 +87,11 @@ public class DomainDataControllerTest {
 
 		Map<Long, List<Map<String, Object>>> svcResult = new LinkedHashMap<>();
 		svcResult.put(10L, rows);
-		when(domainDataService.retrieveAllDomainDataList(eq("finance"), eq("org-1"), eq(FILE_ID)))
+		when(domainDataService.retrieveAllDomainDataList(eq("finance"), eq("org-1"), eq(FILE_ID), anyBoolean()))
 				.thenReturn(svcResult);
 
 		mockMvc.perform(get(ENDPOINT).header("Authorization", AUTH).header("X-FileId", FILE_ID)
-				.param("domainName", "finance").param("size", "10")) // omit "page" to make it null
+				.param("domainName", "finance").param("size", "10").param("includeArchived", "false")) // omit "page" to make it null
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.message").value("Successfully retrieved all domain data list."))
 				.andExpect(jsonPath("$.data[0].id").value(101))
@@ -114,10 +114,10 @@ public class DomainDataControllerTest {
 		svcResult.put(42L, rows);
 
 		when(domainDataService.retrievePaginatedDomainDataList(eq("retail"), eq("org-1"), eq(FILE_ID),
-				any(Pageable.class))).thenReturn(svcResult);
+				any(Pageable.class), anyBoolean())).thenReturn(svcResult);
 
 		mockMvc.perform(get(ENDPOINT).header("Authorization", AUTH).header("X-FileId", FILE_ID)
-				.param("domainName", "retail").param("page", "2").param("size", "5")).andExpect(status().isOk())
+				.param("domainName", "retail").param("page", "2").param("size", "5").param("includeArchived", "false")).andExpect(status().isOk())
 				.andExpect(jsonPath("$.message").value("Successfully retrieved all domain data list."))
 				.andExpect(jsonPath("$.data[0].id").value(202))
 				.andExpect(content().string(Matchers.containsString("\"totalRecord\":42"))).andDo(print());
@@ -128,10 +128,10 @@ public class DomainDataControllerTest {
 		Map<Long, List<Map<String, Object>>> svcResult = new LinkedHashMap<>();
 		svcResult.put(0L, Collections.emptyList());
 
-		when(domainDataService.retrieveAllDomainDataList(eq("legal"), eq("org-1"), eq(FILE_ID))).thenReturn(svcResult);
+		when(domainDataService.retrieveAllDomainDataList(eq("legal"), eq("org-1"), eq(FILE_ID), anyBoolean())).thenReturn(svcResult);
 
 		mockMvc.perform(get(ENDPOINT).header("Authorization", AUTH).header("X-FileId", FILE_ID)
-				.param("domainName", "legal").param("size", "10")).andExpect(status().isOk())
+				.param("domainName", "legal").param("size", "10").param("includeArchived", "false")).andExpect(status().isOk())
 				.andExpect(jsonPath("$.message").value("No Domain Data  List.")).andExpect(jsonPath("$.data").isArray())
 				.andExpect(jsonPath("$.data", Matchers.hasSize(0))).andDo(print());
 
@@ -156,11 +156,11 @@ public class DomainDataControllerTest {
 
 	@Test
 	void retrieveDomainDataList_serviceException() throws Exception {
-		when(domainDataService.retrieveAllDomainDataList(eq("finance"), eq("org-1"), eq(FILE_ID)))
+		when(domainDataService.retrieveAllDomainDataList(eq("finance"), eq("org-1"), eq(FILE_ID), anyBoolean()))
 				.thenThrow(new DomainDataServiceException("Domain retrieval failed"));
 
 		mockMvc.perform(get(ENDPOINT).header("Authorization", AUTH).header("X-FileId", FILE_ID)
-				.param("domainName", "finance").param("size", "10")).andExpect(status().isInternalServerError())
+				.param("domainName", "finance").param("size", "10").param("includeArchived", "false")).andExpect(status().isInternalServerError())
 				.andExpect(jsonPath("$.message").value("Domain retrieval failed")).andDo(print());
 
 		verify(auditService).logAudit(any(AuditDTO.class), eq(500), eq("Domain retrieval failed"), eq(AUTH));
