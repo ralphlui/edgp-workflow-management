@@ -54,6 +54,21 @@ spec:
                 configMapKeyRef:
                   name: my-configmap
                   key: WORKFLOW_RULES_RESPONSE_SQS_URL
+            - name: WORKFLOW_DATA_QUALTIY_REQUEST_SQS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: my-configmap
+                  key: WORKFLOW_DATA_QUALTIY_REQUEST_SQS_URL
+            - name: WORKFLOW_DATA_QUALTIY_RESPONSE_SQS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: my-configmap
+                  key: WORKFLOW_DATA_QUALTIY_RESPONSE_SQS_URL
+            - name: WORKFLOW_DATA_REMEDIATION_REQUEST_SQS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: my-configmap
+                  key: WORKFLOW_DATA_REMEDIATION_REQUEST_SQS_URL
             - name: CLIENT_URL
               valueFrom:
                 configMapKeyRef:
