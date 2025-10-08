@@ -205,15 +205,15 @@ public class DynamicSQLRepository {
 	        throw new IllegalArgumentException("ID value cannot be null.");
 	    }
 
-	    String idRefCol  = dn + "_id";
-	    String primaryID = UUID.randomUUID().toString();
+//	    String idRefCol  = dn + "_id";
+//	    String primaryID = UUID.randomUUID().toString();
 	    
-	    // Insert into archive table
-	    String insertSql = "INSERT INTO `" + archiveTable + "` (`id`, `" + idRefCol + "`, `message`, `archived_at`) "
-	            + "VALUES (?, ?, ?, NOW())";
-
-	    logger.info("Inserted archived SQL row: {}", insertSql);
-	    jdbcTemplate.update(insertSql, primaryID, idValue, message);
+//	    Insert into archive table
+//	    String insertSql = "INSERT INTO `" + archiveTable + "` (`id`, `" + idRefCol + "`, `message`, `archived_at`) "
+//	            + "VALUES (?, ?, ?, NOW())";
+//
+//	    logger.info("Inserted archived SQL row: {}", insertSql);
+//	    jdbcTemplate.update(insertSql, primaryID, idValue, message);
 	    
 	    String updateSql = "UPDATE `" + dn + "` SET `is_archived` = ? WHERE `id` = ?";
 	    logger.info("Updated archived status: {}", updateSql);
