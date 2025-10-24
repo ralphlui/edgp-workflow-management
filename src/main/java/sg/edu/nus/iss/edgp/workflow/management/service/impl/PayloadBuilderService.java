@@ -38,7 +38,7 @@ public class PayloadBuilderService {
 	    workflowStatusData.remove("final_status");
 	    workflowStatusData.remove("rule_status");
 	    workflowStatusData.remove("dataquality_status");
-	    workflowStatusData.remove("organization_id");
+	    //workflowStatusData.remove("organization_id");
 	    workflowStatusData.remove("policy_id");
 	    workflowStatusData.remove("uploaded_by");
 	    workflowStatusData.remove("staging_id");
