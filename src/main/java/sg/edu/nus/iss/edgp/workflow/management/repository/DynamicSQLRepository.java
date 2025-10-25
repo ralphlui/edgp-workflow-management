@@ -216,8 +216,9 @@ public class DynamicSQLRepository {
 //	    jdbcTemplate.update(insertSql, primaryID, idValue, message);
 	    
 	    String updateSql = "UPDATE `" + dn + "` SET `is_archived` = ? WHERE `id` = ?";
-	    logger.info("Updated archived status: {}", updateSql);
+	    logger.info("Updating archived status: {}", updateSql);
 	    jdbcTemplate.update(updateSql, true, idValue);
+	    logger.info("Updated archived status");
 	}
 	
 	public void updateColumnValue(String tableName, String columnName, String idValue, Object fromValue, Object toValue)
@@ -239,6 +240,8 @@ public class DynamicSQLRepository {
 		String sql = "UPDATE " + tableName + " SET " + columnName + " = ? " + "WHERE id = ? AND " + columnName + " = ?";
 
 
+		logger.info("Updating data remediation update data: {}", sql);
 		jdbcTemplate.update(sql, toValue, idValue, fromValue);
+		logger.info("Updated data remediation update data");
 	}
 }

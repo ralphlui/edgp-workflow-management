@@ -30,6 +30,7 @@ public class DataRemediationService {
 //	            return; // only handle AUTO mode
 //	        }
 
+	        logger.info("Data received in updateDataRemediationResponse ");
 	        Object dataObj = rawData.get("data");
 	        if (!(dataObj instanceof Map<?, ?> data)) {
 	            return;
@@ -47,6 +48,7 @@ public class DataRemediationService {
 	            requireNonEmpty(id, "id");
 	            requireNonEmpty(domainName, "domain_name");
 	            dynamicSQLRepository.insertArchiveData(domainName, id, message);
+	            logger.info("Updated remediation delete data status successfully");
 	        } else if ("update".equalsIgnoreCase(action)) {
 	        	 requireNonEmpty(id, "id");
 		         requireNonEmpty(fromValue, "old value");
@@ -54,6 +56,7 @@ public class DataRemediationService {
 		         requireNonEmpty(toValue, "updated value");
 		         requireNonEmpty(fieldName, "column value");
 		         dynamicSQLRepository.updateColumnValue(domainName, fieldName, id, fromValue, toValue);
+		         logger.info("Updated remediation update data status successfully");
 	        }
 
 	    } catch (Exception ex) {
