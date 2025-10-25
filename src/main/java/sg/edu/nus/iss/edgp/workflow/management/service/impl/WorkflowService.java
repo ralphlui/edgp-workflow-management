@@ -171,7 +171,7 @@ public class WorkflowService implements IWorkflowService {
 			Optional.ofNullable(workflowStatusFields.remove("staging_id"));
 			Optional.ofNullable(workflowStatusFields.remove("failed_validations"));
 			Optional.ofNullable(workflowStatusFields.remove("dataquality_status"));
-			Optional.ofNullable(workflowStatusFields.remove("domain_name"));
+//			Optional.ofNullable(workflowStatusFields.remove("domain_name"));
 			Optional.ofNullable(workflowStatusFields.remove("policy_id"));
 			dynamicSQLService.buildCreateTableSQL(workflowStatusFields, domainTableName);
 
