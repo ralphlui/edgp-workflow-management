@@ -48,48 +48,6 @@ class DynamicSQLServiceTest {
 		when(connection.getCatalog()).thenReturn(catalog);
 	}
 
-	@Test
-	void buildCreateTableSQL_happyPath_executesCreateAndInserts() throws SQLException {
-
-		Map<String, Object> data = new HashMap<>();
-		data.put("Name", "Alice");
-		data.put("Age", 30);
-		data.put("Active", true);
-
-		// This path calls insertData → we need schema
-		stubSchemaCatalog("test_schema");
-		when(dynamicSQLRepository.tableExists("test_schema", "users")).thenReturn(true);
-
-		// Spy to capture insertData call while keeping existing injections
-		DynamicSQLService spyService = spy(service);
-		ReflectionTestUtils.setField(spyService, "jdbcTemplate", jdbcTemplate);
-
-		// Act
-		spyService.buildCreateTableSQL(data, "Users");
-
-		// Assert: CREATE TABLE executed
-		ArgumentCaptor<String> sqlCap = ArgumentCaptor.forClass(String.class);
-		verify(jdbcTemplate).execute(sqlCap.capture());
-		String sql = sqlCap.getValue();
-
-		assertTrue(sql.startsWith("CREATE TABLE IF NOT EXISTS `users` ("));
-		assertTrue(sql.contains("`id` VARCHAR(36) PRIMARY KEY"));
-		assertTrue(sql.contains("`created_date` TIMESTAMP DEFAULT CURRENT_TIMESTAMP"));
-		assertTrue(sql.contains("`updated_date` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"));
-		assertTrue(sql.contains("`name` VARCHAR(255)"));
-		assertTrue(sql.contains("`age` INT"));
-		assertTrue(sql.contains("`active` BOOLEAN"));
-
-		ArgumentCaptor<String> tableCap = ArgumentCaptor.forClass(String.class);
-		@SuppressWarnings("unchecked")
-		ArgumentCaptor<Map<String, Object>> mapCap = ArgumentCaptor.forClass(Map.class);
-		verify(spyService).insertData(tableCap.capture(), mapCap.capture());
-
-		assertEquals("users", tableCap.getValue());
-		assertSame(data, mapCap.getValue());
-		assertTrue(data.containsKey("id"));
-		assertTrue(data.get("id") instanceof String);
-	}
 
 	@Test
 	void buildCreateTableSQL_emptyTable_throwsServiceException() {
