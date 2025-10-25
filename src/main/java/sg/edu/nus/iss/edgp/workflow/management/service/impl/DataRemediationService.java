@@ -25,10 +25,10 @@ public class DataRemediationService {
 	        }
 
 	        // mode must be a String and equal to Mode.AUTO (case-insensitive)
-	        Object modeObj = rawData.get("mode");
-	        if (!(modeObj instanceof String modeStr) || !Mode.auto.toString().equalsIgnoreCase(modeStr)) {
-	            return; // only handle AUTO mode
-	        }
+//	        Object modeObj = rawData.get("mode");
+//	        if (!(modeObj instanceof String modeStr) || !Mode.auto.toString().equalsIgnoreCase(modeStr)) {
+//	            return; // only handle AUTO mode
+//	        }
 
 	        Object dataObj = rawData.get("data");
 	        if (!(dataObj instanceof Map<?, ?> data)) {
