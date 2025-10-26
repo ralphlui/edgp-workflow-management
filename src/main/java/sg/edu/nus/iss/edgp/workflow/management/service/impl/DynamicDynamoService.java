@@ -33,6 +33,8 @@ import software.amazon.awssdk.services.dynamodb.model.BillingMode;
 import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest;
 import software.amazon.awssdk.services.dynamodb.model.DescribeTableRequest;
 import software.amazon.awssdk.services.dynamodb.model.DescribeTableResponse;
+import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
 import software.amazon.awssdk.services.dynamodb.model.KeySchemaElement;
 import software.amazon.awssdk.services.dynamodb.model.KeyType;
 import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
@@ -89,37 +91,76 @@ public class DynamicDynamoService implements IDynamicDynamoService {
 			}
 		}
 	}
-
+//
+//	@Override
+//	public Map<String, AttributeValue> getDataByWorkflowStatusId(String tableName, String id) {
+//
+//		try {
+//
+//			if (id == null || id.isEmpty()) {
+//				throw new DynamicDynamoServiceException(
+//						"Workflow status id is empty while  retireving workflow status data.");
+//			}
+//
+//			Map<String, AttributeValue> expressionValues = new HashMap<>();
+//			expressionValues.put(":id", AttributeValue.builder().s(id).build());
+//
+//			ScanRequest scanRequest = ScanRequest.builder().tableName(tableName).filterExpression("id = :id")
+//					.expressionAttributeValues(expressionValues).build();
+//
+//			List<Map<String, AttributeValue>> results = dynamoDbClient.scan(scanRequest).items();
+//
+//			if (results.isEmpty()) {
+//				return null;
+//			}
+//
+//			logger.info("Successfully retrieve work flow status data by workflow id");
+//			return results.get(0);
+//
+//		} catch (Exception ex) {
+//			logger.error("An error occurred while retireving data by workflow status id.... {}", ex);
+//			throw new DynamicDynamoServiceException("An error occurred while retireving data by workflow status id",
+//					ex);
+//		}
+//	}
+	
 	@Override
 	public Map<String, AttributeValue> getDataByWorkflowStatusId(String tableName, String id) {
+	    try {
+	        if (id == null || id.isEmpty()) {
+	            throw new DynamicDynamoServiceException(
+	                "Workflow status id is empty while retrieving workflow status data.");
+	        }
 
-		try {
+	        // Build the key for partition key lookup
+	        Map<String, AttributeValue> key = new HashMap<>();
+	        key.put("id", AttributeValue.builder().s(id).build());
 
-			if (id == null || id.isEmpty()) {
-				throw new DynamicDynamoServiceException(
-						"Workflow status id is empty while  retireving workflow status data.");
-			}
+	        GetItemRequest getItemRequest = GetItemRequest.builder()
+	            .tableName(tableName)
+	            .key(key)
+	            .consistentRead(true)  // Optional: ensures you get the most recent data
+	            .build();
 
-			Map<String, AttributeValue> expressionValues = new HashMap<>();
-			expressionValues.put(":id", AttributeValue.builder().s(id).build());
+	        GetItemResponse response = dynamoDbClient.getItem(getItemRequest);
 
-			ScanRequest scanRequest = ScanRequest.builder().tableName(tableName).filterExpression("id = :id")
-					.expressionAttributeValues(expressionValues).build();
+	        if (!response.hasItem()) {
+	            logger.warn("No workflow status data found for id: {}", id);
+	            return null;
+	        }
 
-			List<Map<String, AttributeValue>> results = dynamoDbClient.scan(scanRequest).items();
+	        logger.info("Successfully retrieved workflow status data by workflow id: {}", id);
+	        return response.item();
 
-			if (results.isEmpty()) {
-				return null;
-			}
-
-			logger.info("Successfully retrieve work flow status data by workflow id");
-			return results.get(0);
-
-		} catch (Exception ex) {
-			logger.error("An error occurred while retireving data by workflow status id.... {}", ex);
-			throw new DynamicDynamoServiceException("An error occurred while retireving data by workflow status id",
-					ex);
-		}
+	    } catch (DynamicDynamoServiceException ex) {
+	        logger.error("DynamoDB error while retrieving data by workflow status id: {}", id, ex);
+	        throw new DynamicDynamoServiceException(
+	            "An error occurred while retrieving data by workflow status id", ex);
+	    } catch (Exception ex) {
+	        logger.error("Unexpected error while retrieving data by workflow status id: {}", id, ex);
+	        throw new DynamicDynamoServiceException(
+	            "An error occurred while retrieving data by workflow status id", ex);
+	    }
 	}
 	
 	@Override
