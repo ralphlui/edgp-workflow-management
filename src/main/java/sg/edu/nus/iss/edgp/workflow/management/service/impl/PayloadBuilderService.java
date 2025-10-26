@@ -46,7 +46,6 @@ public class PayloadBuilderService {
 	    // Convert Map to JsonNode
 	    entry.set("data", mapper.valueToTree(workflowStatusData));
 
-	    // ✅ Convert ObjectNode back to Map<String, Object>
 	    return mapper.convertValue(root, new com.fasterxml.jackson.core.type.TypeReference<Map<String,Object>>() {});
 	}
 	}

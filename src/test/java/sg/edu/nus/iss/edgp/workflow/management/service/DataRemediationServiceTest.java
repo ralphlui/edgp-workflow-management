@@ -16,7 +16,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import sg.edu.nus.iss.edgp.workflow.management.exception.WorkflowServiceException;
 import sg.edu.nus.iss.edgp.workflow.management.repository.DynamicSQLRepository;
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.DataRemediationService;
-import sg.edu.nus.iss.edgp.workflow.management.utility.Mode;
 
 @ExtendWith(MockitoExtension.class)
 class DataRemediationServiceTest {
@@ -26,7 +25,6 @@ class DataRemediationServiceTest {
 
     @InjectMocks
     private DataRemediationService service;
-
 
     @Test
     @DisplayName("Null payload -> no-op")
@@ -43,30 +41,20 @@ class DataRemediationServiceTest {
     }
 
     @Test
-    @DisplayName("Non-AUTO mode -> no-op")
-    void updateDataRemediationResponse_nonAutoMode_noop() {
-        Map<String, Object> raw = new HashMap<>();
-        raw.put("mode", "MANUAL"); // anything not AUTO
-        raw.put("data", Map.of("action", "delete"));
-        assertDoesNotThrow(() -> service.updateDataRemediationResponse(raw));
-        verifyNoInteractions(dynamicSQLRepository);
-    }
-
-    @Test
-    @DisplayName("Missing 'data' field -> no-op")
+    @DisplayName("Missing 'data' field -> no-op (mode ignored)")
     void updateDataRemediationResponse_missingData_noop() {
         Map<String, Object> raw = new HashMap<>();
-        raw.put("mode", Mode.auto.toString()); // "auto"
+        raw.put("mode", "MANUAL"); // ignored by implementation
         // no "data"
         assertDoesNotThrow(() -> service.updateDataRemediationResponse(raw));
         verifyNoInteractions(dynamicSQLRepository);
     }
 
     @Test
-    @DisplayName("'data' is not a map -> no-op")
+    @DisplayName("'data' is not a map -> no-op (mode ignored)")
     void updateDataRemediationResponse_dataNotMap_noop() {
         Map<String, Object> raw = new HashMap<>();
-        raw.put("mode", "AUTO");
+        raw.put("mode", "AUTO"); // ignored by implementation
         raw.put("data", "string-instead-of-map");
         assertDoesNotThrow(() -> service.updateDataRemediationResponse(raw));
         verifyNoInteractions(dynamicSQLRepository);
@@ -84,7 +72,7 @@ class DataRemediationServiceTest {
         data.put("message", "archived by remediation");
 
         Map<String, Object> raw = new HashMap<>();
-        raw.put("mode", "AUTO");      // case-insensitive handled in service
+        raw.put("mode", "ANYTHING"); // ignored
         raw.put("data", data);
 
         assertDoesNotThrow(() -> service.updateDataRemediationResponse(raw));
@@ -100,10 +88,10 @@ class DataRemediationServiceTest {
         Map<String, Object> data = new HashMap<>();
         data.put("action", "delete");
         data.put("domain_name", "customer");
-       
+        // missing id
 
         Map<String, Object> raw = new HashMap<>();
-        raw.put("mode", "AUTO");
+        raw.put("mode", "MANUAL"); // ignored
         raw.put("data", data);
 
         WorkflowServiceException ex = assertThrows(
@@ -113,7 +101,8 @@ class DataRemediationServiceTest {
         assertTrue(ex.getMessage().contains("An error occurred while updating data remediation response"));
         verifyNoInteractions(dynamicSQLRepository);
     }
- 
+
+    // ----------- update action -----------
 
     @Test
     @DisplayName("update: happy path -> calls updateColumnValue")
@@ -128,7 +117,7 @@ class DataRemediationServiceTest {
         data.put("message", "auto-fix");
 
         Map<String, Object> raw = new HashMap<>();
-        raw.put("mode", "auto");
+        raw.put("mode", "auto"); // ignored
         raw.put("data", data);
 
         assertDoesNotThrow(() -> service.updateDataRemediationResponse(raw));
@@ -150,7 +139,7 @@ class DataRemediationServiceTest {
         data.put("field_name", "status");
 
         Map<String, Object> raw = new HashMap<>();
-        raw.put("mode", "AUTO");
+        raw.put("mode", "AUTO"); // ignored
         raw.put("data", data);
 
         WorkflowServiceException ex = assertThrows(
@@ -160,7 +149,6 @@ class DataRemediationServiceTest {
         assertTrue(ex.getMessage().contains("An error occurred while updating data remediation response"));
         verifyNoInteractions(dynamicSQLRepository);
     }
-
 
     @Test
     @DisplayName("Repository throws -> wrapped as WorkflowServiceException")
@@ -172,7 +160,7 @@ class DataRemediationServiceTest {
         data.put("message", "archive");
 
         Map<String, Object> raw = new HashMap<>();
-        raw.put("mode", "AUTO");
+        raw.put("mode", "AUTO"); // ignored
         raw.put("data", data);
 
         doThrow(new RuntimeException("DB down"))
