@@ -21,6 +21,7 @@ import sg.edu.nus.iss.edgp.workflow.management.service.impl.DynamicDynamoService
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.DynamicSQLService;
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.PayloadBuilderService;
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.WorkflowService;
+import software.amazon.awssdk.core.SdkBytes;
 // If you use AWS SDK v1, switch import to com.amazonaws.services.dynamodbv2.model.AttributeValue
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
@@ -497,5 +498,130 @@ class WorkflowServiceTest {
                 () -> service.updateRuleWorkflowStatus(raw)
         );
         assertTrue(ex.getMessage().contains("An error occurred while updating workflow status"));
+    }
+    
+    @Test
+    void dynamoItemToJavaMap_convertsScalarsCollectionsAndSets() {
+        // Scalars
+        AttributeValue sAttr = AttributeValue.builder().s("abc").build();
+        AttributeValue nAttr = AttributeValue.builder().n("123.45").build();   // stays String per code
+        AttributeValue bAttr = AttributeValue.builder().bool(true).build();
+
+        // Sets
+        AttributeValue ssAttr = AttributeValue.builder().ss("a", "b").build();
+        AttributeValue nsAttr = AttributeValue.builder().ns("1", "2", "3").build();
+        AttributeValue bsAttr = AttributeValue.builder()
+                .bs(SdkBytes.fromByteArray(new byte[]{1,2}), SdkBytes.fromByteArray(new byte[]{3,4}))
+                .build();
+
+        // List (with mixed types)
+        AttributeValue listAttr = AttributeValue.builder()
+                .l(
+                    AttributeValue.builder().s("x").build(),
+                    AttributeValue.builder().n("1").build(),
+                    AttributeValue.builder().bool(false).build()
+                )
+                .build();
+
+        // Map (with nested map + list)
+        AttributeValue nestedMapAttr = AttributeValue.builder()
+                .m(Map.of(
+                        "k1", AttributeValue.builder().s("v1").build(),
+                        "k2", AttributeValue.builder().n("7").build(),
+                        "innerList", AttributeValue.builder()
+                                .l(
+                                    AttributeValue.builder().s("y").build(),
+                                    AttributeValue.builder().n("2").build()
+                                ).build()
+                ))
+                .build();
+
+        // Null-ish (DynamoDB NULL type). Your code returns null for anything not matched explicitly.
+        AttributeValue nullAttr = AttributeValue.builder().nul(true).build();
+
+        Map<String, AttributeValue> input = new LinkedHashMap<>();
+        input.put("s", sAttr);
+        input.put("n", nAttr);
+        input.put("b", bAttr);
+        input.put("ss", ssAttr);
+        input.put("ns", nsAttr);
+        input.put("bs", bsAttr);
+        input.put("lst", listAttr);
+        input.put("mp", nestedMapAttr);
+        input.put("nil", nullAttr);
+
+        Map<String, Object> out = service.dynamoItemToJavaMap(input);
+
+      
+        assertEquals("abc", out.get("s"));
+        assertEquals("123.45", out.get("n"));
+        assertEquals(true, out.get("b"));
+
+      
+        assertEquals(Arrays.asList("a", "b"), out.get("ss"));
+        assertEquals(Arrays.asList("1", "2", "3"), out.get("ns"));
+
+        @SuppressWarnings("unchecked")
+        List<Object> bsOut = (List<Object>) out.get("bs");
+        assertNotNull(bsOut);
+        assertEquals(2, bsOut.size());
+        assertTrue(bsOut.get(0) instanceof SdkBytes);
+        assertTrue(bsOut.get(1) instanceof SdkBytes);
+
+   
+        @SuppressWarnings("unchecked")
+        List<Object> lst = (List<Object>) out.get("lst");
+        assertEquals(Arrays.asList("x", "1", false), lst);
+
+     
+        @SuppressWarnings("unchecked")
+        Map<String, Object> mp = (Map<String, Object>) out.get("mp");
+        assertNotNull(mp);
+        assertEquals("v1", mp.get("k1"));
+        assertEquals("7", mp.get("k2"));
+        @SuppressWarnings("unchecked")
+        List<Object> innerList = (List<Object>) mp.get("innerList");
+        assertEquals(Arrays.asList("y", "2"), innerList);
+
+       
+        assertNull(out.get("nil"));
+    }
+
+    @Test
+    void dynamoItemToJavaMap_handlesDeeplyNestedStructuresRecursively() {
+        
+        AttributeValue deep = AttributeValue.builder()
+                .m(Map.of(
+                        "level1", AttributeValue.builder().l(
+                                AttributeValue.builder().m(Map.of(
+                                        "level2_key", AttributeValue.builder().s("level2_value").build(),
+                                        "level2_list", AttributeValue.builder().l(
+                                                AttributeValue.builder().n("99").build(),
+                                                AttributeValue.builder().bool(true).build()
+                                        ).build()
+                                )).build()
+                        ).build()
+                ))
+                .build();
+
+        Map<String, AttributeValue> input = Map.of("deep", deep);
+
+        Map<String, Object> out = service.dynamoItemToJavaMap(input);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> deepMap = (Map<String, Object>) out.get("deep");
+        assertNotNull(deepMap);
+
+        @SuppressWarnings("unchecked")
+        List<Object> level1 = (List<Object>) deepMap.get("level1");
+        assertEquals(1, level1.size());
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> level2 = (Map<String, Object>) level1.get(0);
+        assertEquals("level2_value", level2.get("level2_key"));
+
+        @SuppressWarnings("unchecked")
+        List<Object> level2List = (List<Object>) level2.get("level2_list");
+        assertEquals(Arrays.asList("99", true), level2List);
     }
 }
