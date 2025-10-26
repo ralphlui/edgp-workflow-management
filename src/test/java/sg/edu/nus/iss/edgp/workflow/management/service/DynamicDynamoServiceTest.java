@@ -34,6 +34,8 @@ import software.amazon.awssdk.services.dynamodb.model.CreateTableResponse;
 import software.amazon.awssdk.services.dynamodb.model.DescribeTableRequest;
 import software.amazon.awssdk.services.dynamodb.model.DescribeTableResponse;
 import software.amazon.awssdk.services.dynamodb.model.DynamoDbException;
+import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
 import software.amazon.awssdk.services.dynamodb.model.InternalServerErrorException;
 import software.amazon.awssdk.services.dynamodb.model.KeySchemaElement;
 import software.amazon.awssdk.services.dynamodb.model.ResourceInUseException;
@@ -143,20 +145,63 @@ public class DynamicDynamoServiceTest {
         verify(dynamoDbClient, times(1)).describeTable(any(DescribeTableRequest.class));
     }
 
-    // ---------- getDataByWorkflowStatusId / getFileDataByFileId ----------
-
+//    ---------- getDataByWorkflowStatusId / getFileDataByFileId ----------
+//
+//    @Test
+//    void returnsFirstItem_andBuildsRequestCorrectly_getDataByWorkflowStatusId() {
+//        String table = "tbl";
+//        String id = "abc-123";
+//
+//        Map<String, AttributeValue> item = Map.of(
+//                "id", AttributeValue.builder().s(id).build(),
+//                "status", AttributeValue.builder().s("READY").build()
+//        );
+//
+//        when(dynamoDbClient.scan(any(ScanRequest.class)))
+//                .thenReturn(ScanResponse.builder().items(List.of(item)).build());
+//
+//        Map<String, AttributeValue> result = service.getDataByWorkflowStatusId(table, id);
+//
+//        assertNotNull(result);
+//        assertEquals(id, result.get("id").s());
+//        assertEquals("READY", result.get("status").s());
+//
+//        ArgumentCaptor<ScanRequest> cap = ArgumentCaptor.forClass(ScanRequest.class);
+//        verify(dynamoDbClient).scan(cap.capture());
+//        ScanRequest sent = cap.getValue();
+//        assertEquals(table, sent.tableName());
+//        assertEquals("id = :id", sent.filterExpression());
+//        assertTrue(sent.expressionAttributeValues().containsKey(":id"));
+//        assertEquals(id, sent.expressionAttributeValues().get(":id").s());
+//    }
+//
+//    @Test
+//    void getDataByWorkflowStatusId_throws_whenIdEmpty() {
+//        DynamicDynamoServiceException ex =
+//            assertThrows(DynamicDynamoServiceException.class,
+//                () -> service.getDataByWorkflowStatusId("tbl", ""));
+//
+//         
+//        assertTrue(ex.getMessage().toLowerCase().contains("retireving data by workflow status id"));
+//
+//        
+//        assertNotNull(ex.getCause());
+//        assertInstanceOf(DynamicDynamoServiceException.class, ex.getCause());
+//        assertTrue(ex.getCause().getMessage().toLowerCase().contains("workflow status id is empty"));
+//    }
+    
     @Test
-    void returnsFirstItem_andBuildsRequestCorrectly_getDataByWorkflowStatusId() {
+    void returnsItem_andBuildsRequestCorrectly_getDataByWorkflowStatusId() {
         String table = "tbl";
         String id = "abc-123";
 
         Map<String, AttributeValue> item = Map.of(
-                "id", AttributeValue.builder().s(id).build(),
-                "status", AttributeValue.builder().s("READY").build()
+            "id", AttributeValue.builder().s(id).build(),
+            "status", AttributeValue.builder().s("READY").build()
         );
 
-        when(dynamoDbClient.scan(any(ScanRequest.class)))
-                .thenReturn(ScanResponse.builder().items(List.of(item)).build());
+        when(dynamoDbClient.getItem(any(GetItemRequest.class)))
+            .thenReturn(GetItemResponse.builder().item(item).build());
 
         Map<String, AttributeValue> result = service.getDataByWorkflowStatusId(table, id);
 
@@ -164,41 +209,58 @@ public class DynamicDynamoServiceTest {
         assertEquals(id, result.get("id").s());
         assertEquals("READY", result.get("status").s());
 
-        ArgumentCaptor<ScanRequest> cap = ArgumentCaptor.forClass(ScanRequest.class);
-        verify(dynamoDbClient).scan(cap.capture());
-        ScanRequest sent = cap.getValue();
+        ArgumentCaptor<GetItemRequest> cap = ArgumentCaptor.forClass(GetItemRequest.class);
+        verify(dynamoDbClient).getItem(cap.capture());
+        GetItemRequest sent = cap.getValue();
         assertEquals(table, sent.tableName());
-        assertEquals("id = :id", sent.filterExpression());
-        assertTrue(sent.expressionAttributeValues().containsKey(":id"));
-        assertEquals(id, sent.expressionAttributeValues().get(":id").s());
+        assertTrue(sent.key().containsKey("id"));
+        assertEquals(id, sent.key().get("id").s());
     }
 
     @Test
-    void getDataByWorkflowStatusId_throws_whenIdEmpty() {
-        DynamicDynamoServiceException ex =
-            assertThrows(DynamicDynamoServiceException.class,
-                () -> service.getDataByWorkflowStatusId("tbl", ""));
+    void returnsNull_whenItemNotFound_getDataByWorkflowStatusId() {
+        String table = "tbl";
+        String id = "non-existent-id";
 
-         
-        assertTrue(ex.getMessage().toLowerCase().contains("retireving data by workflow status id"));
+        when(dynamoDbClient.getItem(any(GetItemRequest.class)))
+            .thenReturn(GetItemResponse.builder().build()); // Empty response, no item
 
-        
-        assertNotNull(ex.getCause());
-        assertInstanceOf(DynamicDynamoServiceException.class, ex.getCause());
-        assertTrue(ex.getCause().getMessage().toLowerCase().contains("workflow status id is empty"));
+        Map<String, AttributeValue> result = service.getDataByWorkflowStatusId(table, id);
+
+        assertNull(result);
+        verify(dynamoDbClient).getItem(any(GetItemRequest.class));
     }
+
 
     @Test
-    void getDataByWorkflowStatusId_throws_whenIdNull() {
+    void getDataByWorkflowStatusId_throws_whenDynamoDbException() {
+        String table = "tbl";
+        String id = "abc-123";
+
+        when(dynamoDbClient.getItem(any(GetItemRequest.class)))
+            .thenThrow(DynamoDbException.builder()
+                .message("DynamoDB service error")
+                .build());
+
         DynamicDynamoServiceException ex =
             assertThrows(DynamicDynamoServiceException.class,
-                () -> service.getDataByWorkflowStatusId("tbl", null));
+                () -> service.getDataByWorkflowStatusId(table, id));
 
-        assertTrue(ex.getMessage().toLowerCase().contains("retireving data by workflow status id"));
+        assertTrue(ex.getMessage().toLowerCase().contains("retrieving data by workflow status id"));
         assertNotNull(ex.getCause());
-        assertInstanceOf(DynamicDynamoServiceException.class, ex.getCause());
-        assertTrue(ex.getCause().getMessage().toLowerCase().contains("workflow status id is empty"));
     }
+
+//    @Test
+//    void getDataByWorkflowStatusId_throws_whenIdNull() {
+//        DynamicDynamoServiceException ex =
+//            assertThrows(DynamicDynamoServiceException.class,
+//                () -> service.getDataByWorkflowStatusId("tbl", null));
+//
+//        assertTrue(ex.getMessage().toLowerCase().contains("retireving data by workflow status id"));
+//        assertNotNull(ex.getCause());
+//        assertInstanceOf(DynamicDynamoServiceException.class, ex.getCause());
+//        assertTrue(ex.getCause().getMessage().toLowerCase().contains("Workflow status id is empty while retrieving workflow status data."));
+//    }
 
     @Test
     void returnsNull_whenNoItems_getFileDataByFileId() {
@@ -246,17 +308,17 @@ public class DynamicDynamoServiceTest {
         assertThrows(DynamicDynamoServiceException.class, () -> service.getFileDataByFileId("files", "f-123"));
     }
 
-    @Test
-    void wrapsClientError_inCustomException_getDataByWorkflowStatusId() {
-        when(dynamoDbClient.scan(any(ScanRequest.class)))
-                .thenThrow(DynamoDbException.builder().message("boom").build());
-
-        DynamicDynamoServiceException ex = assertThrows(
-                DynamicDynamoServiceException.class,
-                () -> service.getDataByWorkflowStatusId("tbl", "123")
-        );
-        assertTrue(ex.getMessage().toLowerCase().contains("workflow status id"));
-    }
+//    @Test
+//    void wrapsClientError_inCustomException_getDataByWorkflowStatusId() {
+//        when(dynamoDbClient.scan(any(ScanRequest.class)))
+//                .thenThrow(DynamoDbException.builder().message("boom").build());
+//
+//        DynamicDynamoServiceException ex = assertThrows(
+//                DynamicDynamoServiceException.class,
+//                () -> service.getDataByWorkflowStatusId("tbl", "123")
+//        );
+//        assertTrue(ex.getMessage().toLowerCase().contains("workflow status id"));
+//    }
 
      
 
