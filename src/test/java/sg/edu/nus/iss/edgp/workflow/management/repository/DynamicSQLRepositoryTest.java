@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 
 import javax.sql.DataSource;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -205,4 +206,136 @@ class DynamicSQLRepositoryTest {
 			return extractor.extractData(rs);
 		});
 	}
+	
+	@Test
+    @DisplayName("createArchiveTable: throws when domainName is empty")
+    void createArchiveTable_throwsOnEmptyDomain() {
+        assertThrows(IllegalArgumentException.class,
+            () -> repo.createArchiveTable("", "customer_archive"));
+        verifyNoInteractions(jdbcTemplate);
+    }
+
+    @Test
+    @DisplayName("createArchiveTable: builds correct SQL and executes")
+    void createArchiveTable_buildsSqlAndExecutes() throws Exception {
+        ArgumentCaptor<String> sqlCap = ArgumentCaptor.forClass(String.class);
+        doNothing().when(jdbcTemplate).execute(sqlCap.capture());
+
+        repo.createArchiveTable("customer", "customer_archive");
+
+        String sql = sqlCap.getValue();
+        // Basic shape checks
+        assertTrue(sql.startsWith("CREATE TABLE IF NOT EXISTS `customer_archive` ("));
+        assertTrue(sql.contains("`id` VARCHAR(36) PRIMARY KEY"));
+        assertTrue(sql.contains("`customer_id` VARCHAR(191) NOT NULL"));
+        assertTrue(sql.contains("`message` TEXT"));
+        assertTrue(sql.contains("`archived_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"));
+    }
+ 
+
+    @Test
+    @DisplayName("insertArchiveData: throws when domainName is null/blank")
+    void insertArchiveData_throwsOnNullOrBlankDomain() throws Exception {
+        assertThrows(IllegalArgumentException.class,
+            () -> repo.insertArchiveData(null, "123", "msg"));
+        assertThrows(IllegalArgumentException.class,
+            () -> repo.insertArchiveData("   ", "123", "msg"));
+        verifyNoMoreInteractions(jdbcTemplate);
+    }
+
+    @Test
+    @DisplayName("insertArchiveData: creates archive table if not exists, then throws on null id")
+    void insertArchiveData_tableCreatedWhenMissing_thenThrowsOnNullId() throws Exception {
+      
+        DataSource ds = mock(DataSource.class);
+        Connection conn = mock(Connection.class);
+        when(jdbcTemplate.getDataSource()).thenReturn(ds);
+        when(ds.getConnection()).thenReturn(conn);
+        when(conn.getCatalog()).thenReturn("myschema");
+ 
+        doReturn(false).when(repo).tableExists("myschema", "sales_orders_archive"); 
+        doNothing().when(repo).createArchiveTable("sales_orders", "sales_orders_archive");
+ 
+        assertThrows(IllegalArgumentException.class,
+            () -> repo.insertArchiveData("Sales Orders", null, "m"));
+ 
+        verify(repo, times(1)).createArchiveTable("sales_orders", "sales_orders_archive");
+        
+        verify(jdbcTemplate, never()).update(anyString(), any(), any());
+    }
+
+    @Test
+    @DisplayName("insertArchiveData: updates is_archived when table already exists")
+    void insertArchiveData_updatesArchivedStatus_whenTableExists() throws Exception {
+        
+        DataSource ds = mock(DataSource.class);
+        Connection conn = mock(Connection.class);
+        when(jdbcTemplate.getDataSource()).thenReturn(ds);
+        when(ds.getConnection()).thenReturn(conn);
+        when(conn.getCatalog()).thenReturn("myschema");
+ 
+        doReturn(true).when(repo).tableExists("myschema", "customer_archive");
+
+        ArgumentCaptor<String> sqlCap = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object> arg1 = ArgumentCaptor.forClass(Object.class);
+        ArgumentCaptor<Object> arg2 = ArgumentCaptor.forClass(Object.class);
+
+        when(jdbcTemplate.update(sqlCap.capture(), arg1.capture(), arg2.capture())).thenReturn(1);
+ 
+        repo.insertArchiveData("Customer", "id-001", "archiving reason");
+ 
+        String expectedSql = "UPDATE `customer` SET `is_archived` = ? WHERE `id` = ?";
+        assertEquals(expectedSql, sqlCap.getValue());
+        assertEquals(true, arg1.getValue());
+        assertEquals("id-001", arg2.getValue());
+ 
+        verify(repo, never()).createArchiveTable(anyString(), anyString());
+    }
+ 
+
+    @Test
+    @DisplayName("updateColumnValue: throws on invalid args")
+    void updateColumnValue_throwsOnInvalidArgs() throws Exception {
+        assertThrows(IllegalArgumentException.class,
+            () -> repo.updateColumnValue(null, "col", "id", 1, 2));
+        assertThrows(IllegalArgumentException.class,
+            () -> repo.updateColumnValue("tbl", null, "id", 1, 2));
+        assertThrows(IllegalArgumentException.class,
+            () -> repo.updateColumnValue("tbl", "col", null, 1, 2));
+        assertThrows(IllegalArgumentException.class,
+            () -> repo.updateColumnValue("tbl", "col", "   ", 1, 2));
+        assertThrows(IllegalArgumentException.class,
+            () -> repo.updateColumnValue("tbl", "col", "id", null, 2));
+        verifyNoMoreInteractions(jdbcTemplate);
+    }
+
+    @Test
+    @DisplayName("updateColumnValue: builds correct SQL and binds args")
+    void updateColumnValue_executesUpdate() throws Exception {
+        ArgumentCaptor<String> sqlCap = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> argsCap = ArgumentCaptor.forClass(Object[].class);
+ 
+        when(jdbcTemplate.update(anyString(), any(), any(), any()))
+                .thenAnswer(inv -> {
+                   
+                    return 1;
+                });
+ 
+        repo.updateColumnValue("orders", "status", "abc-123", "PENDING", "APPROVED");
+
+        
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object> a1 = ArgumentCaptor.forClass(Object.class);
+        ArgumentCaptor<Object> a2 = ArgumentCaptor.forClass(Object.class);
+        ArgumentCaptor<Object> a3 = ArgumentCaptor.forClass(Object.class);
+
+        verify(jdbcTemplate).update(sqlCaptor.capture(), a1.capture(), a2.capture(), a3.capture());
+
+        String expectedSql = "UPDATE orders SET status = ? WHERE id = ? AND status = ?";
+        assertEquals(expectedSql, sqlCaptor.getValue());
+        assertEquals("APPROVED", a1.getValue());
+        assertEquals("abc-123", a2.getValue());
+        assertEquals("PENDING", a3.getValue());
+    }
+
 }
