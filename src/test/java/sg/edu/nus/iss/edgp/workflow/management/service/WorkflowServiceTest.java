@@ -13,11 +13,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import sg.edu.nus.iss.edgp.workflow.management.aws.service.SQSDataQualityRequestService;
 import sg.edu.nus.iss.edgp.workflow.management.dto.SearchRequest;
 import sg.edu.nus.iss.edgp.workflow.management.dto.WorkflowStatus;
 import sg.edu.nus.iss.edgp.workflow.management.exception.WorkflowServiceException;
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.DynamicDynamoService;
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.DynamicSQLService;
+import sg.edu.nus.iss.edgp.workflow.management.service.impl.PayloadBuilderService;
 import sg.edu.nus.iss.edgp.workflow.management.service.impl.WorkflowService;
 // If you use AWS SDK v1, switch import to com.amazonaws.services.dynamodbv2.model.AttributeValue
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
@@ -38,6 +40,10 @@ class WorkflowServiceTest {
 	private static final String TABLE = "master_task_tracker";
 	private static final String TRACKER_TABLE = "master_task_tracker";
 	private static final String HEADER_TABLE = "master_header";
+	
+	@Mock private PayloadBuilderService payloadBuilderService;
+    @Mock private SQSDataQualityRequestService sqsDataQualityRequestService;
+
 
 	@BeforeEach
 	void setUp() throws Exception {
@@ -344,15 +350,152 @@ class WorkflowServiceTest {
     @Test
     @DisplayName("Wraps unexpected exceptions into WorkflowServiceException")
     void retrieveDataRecordDetailbyWorkflowId_wrapsException() {
-        // Arrange
+    
         when(dynamoService.getDataByWorkflowStatusId(TRACKER_TABLE, "wf-err"))
                 .thenThrow(new RuntimeException("boom"));
-
-        // Act & Assert
+ 
         WorkflowServiceException ex = assertThrows(
                 WorkflowServiceException.class,
                 () -> service.retrieveDataRecordDetailbyWorkflowId("wf-err")
         );
         assertTrue(ex.getMessage().contains("An error occurred while retireving workflow data record by id"));
+    }
+    
+    @Test
+    @DisplayName("Rule flow: SUCCESS -> updates ruleStatus, builds payload, sends SQS")
+    void updateRuleWorkflowStatus_success_buildsPayloadAndSends() {
+       
+        Map<String, Object> data = Map.of("id", "wf-123");
+        List<Map<String, Object>> failedValidations = List.of(Map.of("f", "v"));
+
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("status", "SUCCESS");
+        raw.put("data", data);
+        raw.put("failed_validations", failedValidations);
+
+        when(dynamoService.tableExists(TABLE)).thenReturn(true);
+
+        Map<String, AttributeValue> stored = new HashMap<>();
+        stored.put("id", AttributeValue.builder().s("wf-123").build());
+        when(dynamoService.getDataByWorkflowStatusId(TABLE, "wf-123")).thenReturn(stored);
+
+        Map<String, Object> converted = new LinkedHashMap<>();
+        converted.put("id", "wf-123");
+        doReturn(converted).when(service).dynamoItemToJavaMap(stored);
+
+        Map<String, Object> payloadOut = Map.of("data_entry", Map.of("x", 1));
+        try {
+            when(payloadBuilderService.buildDataQualityPayLoad(raw, converted)).thenReturn(payloadOut);
+        } catch (Exception e) {
+            fail(e);
+        }
+
+        ArgumentCaptor<WorkflowStatus> wsCaptor = ArgumentCaptor.forClass(WorkflowStatus.class);
+ 
+        service.updateRuleWorkflowStatus(raw);
+
+        verify(dynamoService).updateWorkflowStatus(eq(TABLE), wsCaptor.capture());
+        WorkflowStatus saved = wsCaptor.getValue();
+        assertEquals("wf-123", saved.getId());
+        assertEquals("SUCCESS", saved.getRuleStatus());
+       
+        assertEquals(List.copyOf(failedValidations), saved.getFailedValidations());
+
+        try {
+            verify(payloadBuilderService, times(1)).buildDataQualityPayLoad(raw, converted);
+        } catch (Exception e) {
+            fail(e);
+        }
+        verify(sqsDataQualityRequestService, times(1)).forwardToDataQualityRequestQueue(payloadOut);
+    }
+
+    @Test
+    @DisplayName("Rule flow: FAIL -> sets finalStatus=FAIL and does not send SQS")
+    void updateRuleWorkflowStatus_fail_setsFinalStatus_noSqs() {
+         
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("status", "FAIL");
+        raw.put("data", Map.of("id", "wf-9"));
+        raw.put("failed_validations", List.of(Map.of("code", "E1")));
+
+        when(dynamoService.tableExists(TABLE)).thenReturn(true);
+        when(dynamoService.getDataByWorkflowStatusId(TABLE, "wf-9"))
+                .thenReturn(Map.of("id", AttributeValue.builder().s("wf-9").build()));
+
+        ArgumentCaptor<sg.edu.nus.iss.edgp.workflow.management.dto.WorkflowStatus> wsCaptor =
+                ArgumentCaptor.forClass(sg.edu.nus.iss.edgp.workflow.management.dto.WorkflowStatus.class);
+ 
+        service.updateRuleWorkflowStatus(raw);
+ 
+        verify(dynamoService).updateWorkflowStatus(eq(TABLE), wsCaptor.capture());
+        var saved = wsCaptor.getValue();
+        assertEquals("FAIL", saved.getRuleStatus());
+        assertEquals("FAIL", saved.getFinalStatus(), "finalStatus should be set to FAIL");
+        
+        verifyNoInteractions(payloadBuilderService);
+        verifyNoInteractions(sqsDataQualityRequestService);
+    }
+
+    @Test
+    @DisplayName("Creates table if missing before proceeding")
+    void updateRuleWorkflowStatus_createsTableIfMissing() {
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("status", "SUCCESS");
+        raw.put("data", Map.of("id", "wf-123"));
+
+        when(dynamoService.tableExists(TABLE)).thenReturn(false);
+        when(dynamoService.getDataByWorkflowStatusId(TABLE, "wf-123"))
+                .thenReturn(Map.of("id", AttributeValue.builder().s("wf-123").build()));
+        doReturn(Map.of("id", "wf-123")).when(service).dynamoItemToJavaMap(anyMap());
+
+        service.updateRuleWorkflowStatus(raw);
+
+        verify(dynamoService).createTable(TABLE);
+        verify(dynamoService).updateWorkflowStatus(eq(TABLE), any());
+    }
+
+    @Test
+    void updateRuleWorkflowStatus_missingExistingData_throws() {
+      
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("status", "SUCCESS");
+        raw.put("data", Map.of("id", "wf-404"));
+
+        when(dynamoService.tableExists(TABLE)).thenReturn(true);
+        when(dynamoService.getDataByWorkflowStatusId(TABLE, "wf-404"))
+                .thenReturn(Collections.emptyMap());
+ 
+        WorkflowServiceException ex = assertThrows(
+                WorkflowServiceException.class,
+                () -> service.updateRuleWorkflowStatus(raw)
+        );
+ 
+        assertTrue(ex.getMessage().contains("An error occurred while updating workflow status"));
+ 
+        assertNotNull(ex.getCause());
+        assertTrue(ex.getCause().getMessage()
+                .contains("Workflow status update aborted: existing workflow status data not found."));
+    }
+
+
+    @Test
+    @DisplayName("Wraps unexpected exceptions into WorkflowServiceException")
+    void updateRuleWorkflowStatus_wrapsException() {
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("status", "SUCCESS");
+        raw.put("data", Map.of("id", "wf-err"));
+
+        when(dynamoService.tableExists(TABLE)).thenReturn(true);
+        when(dynamoService.getDataByWorkflowStatusId(TABLE, "wf-err"))
+                .thenReturn(Map.of("id", AttributeValue.builder().s("wf-err").build()));
+        
+        doThrow(new RuntimeException("boom")).when(dynamoService)
+                .updateWorkflowStatus(eq(TABLE), any(sg.edu.nus.iss.edgp.workflow.management.dto.WorkflowStatus.class));
+
+        WorkflowServiceException ex = assertThrows(
+                WorkflowServiceException.class,
+                () -> service.updateRuleWorkflowStatus(raw)
+        );
+        assertTrue(ex.getMessage().contains("An error occurred while updating workflow status"));
     }
 }
