@@ -1,0 +1,126 @@
+package sg.edu.nus.iss.edgp.workflow.management.service.impl;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import lombok.RequiredArgsConstructor;
+import sg.edu.nus.iss.edgp.workflow.management.enums.FileProcessStage;
+import sg.edu.nus.iss.edgp.workflow.management.service.IProcessStatusObserverService;
+import sg.edu.nus.iss.edgp.workflow.management.utility.Status;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
+import software.amazon.awssdk.services.dynamodb.model.ReturnValue;
+import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
+import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
+import software.amazon.awssdk.services.dynamodb.model.Select;
+import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
+
+@RequiredArgsConstructor
+@Service
+public class ProcessStatusObserverService implements IProcessStatusObserverService {
+
+	private final DynamoDbClient dynamoDbClient;
+	
+	@Value("${aws.dynamodb.table.master.data.header}")
+	private String masterDataHeaderTableName;
+	
+	@Value("${aws.dynamodb.table.master.data.task}")
+	private String masterDataTaskTrackerTableName;
+
+	@Override
+	public HashMap<String,String> fetchOldestIdByProcessStage(FileProcessStage stage) {
+		ScanRequest req = ScanRequest.builder().tableName(masterDataHeaderTableName.trim())
+				.filterExpression("#ps = :ps").expressionAttributeNames(Map.of("#ps", "process_stage"))
+				.expressionAttributeValues(Map.of(":ps", AttributeValue.builder().s(stage.name()).build()))
+				.projectionExpression("id, uploaded_date,file_name").build();
+		HashMap<String,String> result = new HashMap<String, String>();
+		String fileId = "";
+		String fileName ="";
+		String fileCreated = null;
+
+		for (ScanResponse page : dynamoDbClient.scanPaginator(req)) {
+			for (Map<String, AttributeValue> item : page.items()) {
+				AttributeValue id = item.get("id");
+				AttributeValue name = item.get("file_name");
+				AttributeValue created = item.get("uploaded_date");
+				if (id == null || id.s() == null || id.s().isBlank())
+					continue;
+				if (created == null || created.s() == null || created.s().isBlank())
+					continue;
+
+				String cd = created.s();
+				if (fileCreated == null || cd.compareTo(fileCreated) < 0) {
+					fileCreated = cd;
+					fileId = id.s();
+					fileName= name.s();
+					result.put("id", fileId);
+					result.put("name", fileName);
+				}
+			}
+		}
+		return result;
+	}
+
+	@Override
+	public boolean isAllDataProcessed(String fileId) {
+
+		ScanRequest scanRequest = ScanRequest.builder().tableName(masterDataTaskTrackerTableName.trim()).filterExpression("file_id = :fid")
+				.expressionAttributeValues(Map.of(":fid", AttributeValue.builder().s(fileId).build())).build();
+
+		List<Map<String, AttributeValue>> results = dynamoDbClient.scan(scanRequest).items();
+
+		// Return false if any item has null or empty file_status
+		return results.stream().allMatch(item -> {
+			AttributeValue statusAttr = item.get("final_status");
+			return statusAttr != null && statusAttr.s() != null && !statusAttr.s().isBlank();
+		});
+
+	}
+
+	@Override
+	public String getAllStatusForFile(String fileId) {
+	    ScanRequest req = ScanRequest.builder()
+	        .tableName(masterDataTaskTrackerTableName.trim())
+	        .filterExpression("#fid = :fid")
+	        .expressionAttributeNames(Map.of("#fid", "file_id"))
+	        .expressionAttributeValues(Map.of(
+	            ":fid", AttributeValue.builder().s(fileId).build()
+	        ))
+	        .build();
+
+	    for (ScanResponse page : dynamoDbClient.scanPaginator(req)) {
+	        for (Map<String, AttributeValue> item : page.items()) {
+	            String status = item.get("final_status").s();
+	            if (status != null && status.equalsIgnoreCase(Status.fail.toString())) {
+	                return Status.fail.toString();
+	            }
+	        }
+	    }
+
+	    return Status.success.toString();
+	}
+
+
+
+	@Override
+	public void updateFileStageAndStatus(String fileId, FileProcessStage stage, String status) {
+		Map<String, AttributeValue> key = Map.of("id", AttributeValue.builder().s(fileId).build());
+
+		UpdateItemRequest req = UpdateItemRequest.builder()
+				.tableName(masterDataHeaderTableName.trim()).key(key)
+				.updateExpression("SET #stage = :stage, #status = :status, updated_date = :now")
+				.expressionAttributeNames(Map.of("#stage", "process_stage", "#status", "file_status"))
+				.expressionAttributeValues(Map.of(":stage", AttributeValue.builder().s(stage.name()).build(), ":status",
+						AttributeValue.builder().s(status).build(), ":now",
+						AttributeValue.builder().s(java.time.Instant.now().toString()).build()))
+				.conditionExpression("attribute_exists(id)").returnValues(ReturnValue.UPDATED_NEW).build();
+
+		dynamoDbClient.updateItem(req);
+	}
+
+}

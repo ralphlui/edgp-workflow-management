@@ -29,6 +29,11 @@ spec:
                 configMapKeyRef:
                   name: my-configmap
                   key: SPRING_PROFILES_ACTIVE
+            - name: NOTIFICATION_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: my-configmap
+                  key: NOTIFICATION_URL
             - name: AUDIT_SQS_URL
               valueFrom:
                 configMapKeyRef:
@@ -49,6 +54,21 @@ spec:
                 configMapKeyRef:
                   name: my-configmap
                   key: WORKFLOW_RULES_RESPONSE_SQS_URL
+            - name: WORKFLOW_DATA_QUALTIY_REQUEST_SQS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: my-configmap
+                  key: WORKFLOW_DATA_QUALTIY_REQUEST_SQS_URL
+            - name: WORKFLOW_DATA_QUALTIY_RESPONSE_SQS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: my-configmap
+                  key: WORKFLOW_DATA_QUALTIY_RESPONSE_SQS_URL
+            - name: WORKFLOW_DATA_REMEDIATION_RESPONSE_SQS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: my-configmap
+                  key: WORKFLOW_DATA_REMEDIATION_SQS_URL
             - name: CLIENT_URL
               valueFrom:
                 configMapKeyRef:
@@ -59,11 +79,11 @@ spec:
                 configMapKeyRef:
                   name: my-configmap
                   key: ADMIN_URL
-            - name: ORG_URL
+            - name: ORGANIZATION_URL
               valueFrom:
                 configMapKeyRef:
                   name: my-configmap
-                  key: ORG_URL
+                  key: ORGANIZATION_URL
             - name: aws_access_key_id
               valueFrom:
                 secretKeyRef:
@@ -87,10 +107,10 @@ spec:
           resources:
            requests:
              cpu: "50m"
-             memory: "250Mi"
+             memory: "500Mi"
            limits:
              cpu: "350m"
-             memory: "500Mi"
+             memory: "800Mi"
 
 ---
 apiVersion: v1

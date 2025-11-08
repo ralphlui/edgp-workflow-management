@@ -56,7 +56,7 @@ public class AuditService implements IAuditService {
 
 	}
 
-	public AuditDTO createAuditDTO(String userId,String activityType, String activityTypePrefix, String endpoint,
+	public AuditDTO createAuditDTO(String userId, String activityType, String activityTypePrefix, String endpoint,
 			HTTPVerb verb) {
 		AuditDTO auditDTO = new AuditDTO();
 		auditDTO.setActivityType(activityTypePrefix.trim() + activityType);
@@ -66,7 +66,7 @@ public class AuditService implements IAuditService {
 		return auditDTO;
 	}
 
-	public void logAudit(AuditDTO auditDTO, int stausCode, String message,String token) {
+	public void logAudit(AuditDTO auditDTO, int stausCode, String message, String token) {
 		logger.error(message);
 		auditDTO.setStatusCode(stausCode);
 		if (stausCode == 200) {
